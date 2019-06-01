@@ -7,17 +7,16 @@ import it.unibo.pcd1819.mapmonitoring.view.utilities.ViewUtilities._
 import javafx.application.Platform
 import javafx.fxml.FXML
 import javafx.scene.Scene
-import javafx.scene.layout.AnchorPane
+import javafx.scene.layout.BorderPane
 import javafx.stage.Stage
 
 trait ActorObserver {
   def setViewActorRef(actorRef: ActorRef): Unit
 }
 
-protected final case class MainScreenView() extends AbstractMainScreenView() with ActorObserver {
-
+final class MainScreenView extends AbstractMainScreenView() with ActorObserver {
   private var viewActorRef: ActorRef = _
-  Platform.runLater(() => this.mainBorder = ViewUtilities.loadFxml(this, FXMLScreens.HOME).asInstanceOf[AnchorPane])
+  Platform.runLater(() => this.mainBorder = ViewUtilities.loadFxml(this, FXMLScreens.HOME).asInstanceOf[BorderPane])
 
   @FXML override def initialize(): Unit = {
     super.initialize()
@@ -32,10 +31,9 @@ protected final case class MainScreenView() extends AbstractMainScreenView() wit
   }
 
   // ##################### TO VIEW ACTOR
-  override def log(message: String): Unit = ???
-  override def startSimulation(): Unit = ???
-  override def pauseSimulation(): Unit = ???
-  override def stopSimulation(): Unit = ???
+  override def log(message: String): Unit = log("log")
+  override def startSimulation(): Unit = log("start")
+  override def stopSimulation(): Unit = log("pause")
   override def setViewActorRef(actorRef: ActorRef): Unit = this.viewActorRef = actorRef
 
 
@@ -43,9 +41,5 @@ protected final case class MainScreenView() extends AbstractMainScreenView() wit
 }
 
 object MainScreenView {
-  def apply(defaultParticles: Int,
-            defaultIterations: Int,
-            defaultTimeStep: Int,
-            logicSize: Double
-           ): MainScreenView = new MainScreenView()
+  def apply(): MainScreenView = new MainScreenView()
 }
