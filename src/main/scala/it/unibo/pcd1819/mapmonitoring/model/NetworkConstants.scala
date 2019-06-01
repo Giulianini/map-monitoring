@@ -1,6 +1,4 @@
-package ass32gc.trulyyours.model
-
-import com.typesafe.config.ConfigFactory
+package it.unibo.pcd1819.mapmonitoring.model
 
 object NetworkConstants {
   val sensorSeedPort = 5000

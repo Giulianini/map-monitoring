@@ -1,12 +1,15 @@
-package ass32gc.trulyyours.sensor
+package it.unibo.pcd1819.mapmonitoring.sensor
 
 import akka.actor.{Actor, ActorLogging, ActorSystem, Address, Identify, Props, Timers}
 import akka.cluster.{Cluster, Member}
 import akka.cluster.ClusterEvent.{MemberDowned, MemberUp}
-import ass32gc.trulyyours.model.NetworkConstants._
-import ass32gc.trulyyours.sensor.SensorAgent._
 import com.typesafe.config.ConfigFactory
+import it.unibo.pcd1819.mapmonitoring.model.Environment._
+import it.unibo.pcd1819.mapmonitoring.model.NetworkConstants._
+import it.unibo.pcd1819.mapmonitoring.sensor.SensorAgent._
 
+import scala.concurrent.duration._
+import scala.util.Random
 import scala.concurrent.duration.FiniteDuration
 
 
@@ -25,23 +28,21 @@ object SensorAgent {
 
     val system = ActorSystem(clusterName, config)
 
-    val sensor = if (port == "0") system actorOf(SensorAgent.props, "sensor") else system actorOf(SensorAgent.props, "sensorSeedNode")
+    val sensor = if (port == "0")
+      system actorOf(SensorAgent.props, "sensor")
+    else
+      system actorOf(SensorAgent.props, "sensorSeedNode")
   }
 }
 
 class SensorAgent extends Actor with ActorLogging with Timers{
-
-  import ass32gc.trulyyours.model.Environment._
-
-  import scala.concurrent.duration._
-  import scala.util.Random
-
   private val cluster = Cluster(context.system)
-  private var guardians: List[Address] = List()
-  private var dashboards: List[Address] = List()
 
   private val decisionMaker = Random
   private val nature = pickNature
+
+  private var guardians: List[Address] = List()
+  private var dashboards: List[Address] = List()
   private var y: Double = _
   private var x: Double = _
 

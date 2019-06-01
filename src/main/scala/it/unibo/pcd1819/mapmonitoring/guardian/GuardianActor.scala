@@ -1,15 +1,9 @@
-package ass32gc.trulyyours.guardian
+package it.unibo.pcd1819.mapmonitoring.guardian
 
-import akka.actor.{Actor, ActorLogging, ActorSystem, Address, Props, RootActorPath, Timers}
+import akka.actor.{Actor, ActorLogging, ActorSystem, Props, Timers}
 import akka.cluster.Cluster
-import akka.cluster.ClusterEvent.MemberUp
-import ass32gc.trulyyours.guardian.GuardianActor.{EndAlert, Opinion}
-import ass32gc.trulyyours.model.NetworkConstants.{clusterName, transportProtocol}
 import com.typesafe.config.ConfigFactory
-
-import scala.concurrent.duration._
-
-
+import it.unibo.pcd1819.mapmonitoring.model.NetworkConstants._
 
 object GuardianActor {
   def props = Props(classOf[GuardianActor])
@@ -39,11 +33,9 @@ class GuardianActor extends Actor with ActorLogging with Timers{
 
   override def preStart(): Unit = {
     super.preStart()
-//    timers startPeriodicTimer(EndAlert, Opinion, 4000 milliseconds)
   }
 
   override def receive: Receive = {
     case _ =>
-//      context.actorSelection(RootActorPath(member.address) / "user" / "frontend") ! BackendRegistration
   }
 }

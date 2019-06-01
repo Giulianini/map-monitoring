@@ -10,7 +10,7 @@ object ParticleDrawingUtils {
   private val BRIGHTNESS = 0.90
   private val DIFFUSE_IMAGE = new Image("/images/paperMapping.jpg")
 
-  def createParticleShapes(particle: Particle, shapeType: Value, environmentSize: Vector2D, polygons: Int, logicSize: Double, id: Int): ShapeId = {
+  /*def createParticleShapes(particle: Particle, shapeType: Value, environmentSize: Vector2D, polygons: Int, logicSize: Double, id: Int): ShapeId = {
     val particleRadius = particle.mass / 5
     val chargeColor = particle.charge
     val color = Color.hsb(ParticleDrawingUtils.HUE, chargeColor, ParticleDrawingUtils.BRIGHTNESS)
@@ -22,5 +22,5 @@ object ParticleDrawingUtils {
       .material(material)
       .rotateAnimation(2)
       .build()
-  }
+  }*/
 }

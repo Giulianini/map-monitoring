@@ -1,9 +1,9 @@
 package ass32gc
 
-import ass32gc.trulyyours.dashboard.DashboardActor
-import ass32gc.trulyyours.guardian.GuardianActor
-import ass32gc.trulyyours.sensor.SensorAgent
-import ass32gc.trulyyours.model.NetworkConstants._
+import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor
+import it.unibo.pcd1819.mapmonitoring.sensor.SensorAgent
+import it.unibo.pcd1819.mapmonitoring.model.NetworkConstants._
+import it.unibo.pcd1819.mapmonitoring.view.DashboardActor
 
 object Launcher extends App {
   SensorAgent.main(Seq(sensorSeedPort.toString).toArray)
@@ -14,5 +14,4 @@ object Launcher extends App {
   SensorAgent.main(Seq.empty.toArray)
   GuardianActor.main(Seq.empty.toArray)
   GuardianActor.main(Seq.empty.toArray)
-
 }

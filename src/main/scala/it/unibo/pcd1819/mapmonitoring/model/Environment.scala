@@ -1,4 +1,4 @@
-package ass32gc.trulyyours.model
+package it.unibo.pcd1819.mapmonitoring.model
 
 import scala.concurrent.duration._
 

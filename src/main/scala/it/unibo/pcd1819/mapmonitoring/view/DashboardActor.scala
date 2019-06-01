@@ -1,11 +1,10 @@
-package ass32gc.trulyyours.dashboard
+package it.unibo.pcd1819.mapmonitoring.view
 
-import akka.actor.{Actor, ActorLogging, ActorSystem, Address, Props, Timers}
-import akka.cluster.Cluster
-import ass32gc.trulyyours.dashboard.DashboardActor._
-import ass32gc.trulyyours.model.Environment.{Coordinate, Patch}
-import ass32gc.trulyyours.model.NetworkConstants.{clusterName, transportProtocol}
+import akka.actor.{Actor, ActorLogging, ActorSystem, Props, Timers}
 import com.typesafe.config.ConfigFactory
+import it.unibo.pcd1819.mapmonitoring.model.Environment._
+import it.unibo.pcd1819.mapmonitoring.model.NetworkConstants._
+import it.unibo.pcd1819.mapmonitoring.view.DashboardActor._
 
 object DashboardActor {
   def props = Props(classOf[DashboardActor])
