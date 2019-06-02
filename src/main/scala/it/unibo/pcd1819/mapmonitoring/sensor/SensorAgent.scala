@@ -1,13 +1,16 @@
 package it.unibo.pcd1819.mapmonitoring.sensor
 
-import akka.actor.{Actor, ActorLogging, ActorSystem, Address, Identify, Props, Timers}
-import akka.cluster.{Cluster, Member}
-import akka.cluster.ClusterEvent.{MemberDowned, MemberUp}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Timers}
+import akka.cluster.{Cluster, Member, MemberStatus}
+import akka.cluster.ClusterEvent.{CurrentClusterState, MemberDowned, MemberUp}
 import com.typesafe.config.ConfigFactory
+import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor
 import it.unibo.pcd1819.mapmonitoring.model.Environment._
 import it.unibo.pcd1819.mapmonitoring.model.NetworkConstants._
 import it.unibo.pcd1819.mapmonitoring.sensor.SensorAgent._
+import it.unibo.pcd1819.mapmonitoring.view.DashboardActor
 
+import scala.collection.immutable.SortedSet
 import scala.concurrent.duration._
 import scala.util.Random
 import scala.concurrent.duration.FiniteDuration
@@ -15,6 +18,10 @@ import scala.concurrent.duration.FiniteDuration
 
 object SensorAgent {
   def props = Props(classOf[SensorAgent])
+
+  sealed trait SensorInput
+  final case class GuardianIdentity(patch: String) extends SensorInput
+  final case object DashboardIdentity extends SensorInput
 
   private final case object TickKey
   private final case object Tick
@@ -27,11 +34,7 @@ object SensorAgent {
         .withFallback(ConfigFactory.load("sensor"))
 
     val system = ActorSystem(clusterName, config)
-
-    val sensor = if (port == "0")
-      system actorOf(SensorAgent.props, "sensor")
-    else
-      system actorOf(SensorAgent.props, "sensorSeedNode")
+    system actorOf(SensorAgent.props, "sensor")
   }
 }
 
@@ -41,87 +44,112 @@ class SensorAgent extends Actor with ActorLogging with Timers{
   private val decisionMaker = Random
   private val nature = pickNature
 
-  private var guardians: List[Address] = List()
-  private var dashboards: List[Address] = List()
+  private var guardianLookUpTable: Map[String, ActorRef] = Map()
+  private var dashboardLookUpTable: Seq[ActorRef] = Seq()
+
   private var y: Double = _
   private var x: Double = _
 
   override def preStart(): Unit = {
     super.preStart()
-    cluster.subscribe(self, classOf[MemberUp], classOf[MemberDowned])
     x = decisionMaker.nextDouble() * width
     y = decisionMaker.nextDouble() * height
-    log info s"${nature.updateSpeed.toMillis}"
-    //self ! Tick
+    cluster.subscribe(self, classOf[MemberUp], classOf[MemberDowned])
+    log info s"Sensor agent ${self.path} started with a ${nature.updateSpeed.toMillis} ms Tick"
   }
 
   override def receive: Receive = {
-    case MemberUp(member) => manageNewMembers(member)
-    case MemberDowned(member) => manageDeadMembers(member)
+    case CurrentClusterState(members, _, _, _, _) =>
+      manageStartUpMembers(members)
+      self ! Tick
+      context become talk
+    case MemberUp(member) => manageNewMember(member)
+    case MemberDowned(member) => manageDeadMember(member)
+    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
+    case DashboardIdentity => manageDashboardLookUpTable()
+    case _ => log info "How is this possible"
+  }
+
+  def talk: Receive = {
+    case MemberUp(member) => manageNewMember(member)
+    case MemberDowned(member) => manageDeadMember(member)
+    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
+    case DashboardIdentity => manageDashboardLookUpTable()
     case Tick =>
       val value = pickDecision
       val currentPatch = toPatch(Coordinate(x, y))
       if (currentPatch.nonEmpty){
-        guardians.map(address => context.actorSelection(address.toString)).foreach(actor => {
-          actor ! Identify
-        })
-      }
-      context become {
-        if (remainSilent(value.toInt)) silentMoving else
-          if(currentPatch.isEmpty) silentWandering else moving
+        log info "embe"
+        guardianLookUpTable.filterKeys(key => key == currentPatch.get.name)
+          .values.foreach(ref => ref ! GuardianActor.SensorValue(value))
       }
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
-    case _ => log error "A sensor is not meant to be contacted"
+      context become {
+        if (remainSilent(value.toInt)) silentMoving else
+        if(currentPatch.isEmpty) silentWandering else moving
+      }
+    case _ => log error s"$x A sensor is not meant to be contacted"
   }
 
   def silent: Receive = {
-    case MemberUp(member) => manageNewMembers(member)
-    case MemberDowned(member) => manageDeadMembers(member)
+    case MemberUp(member) => manageNewMember(member)
+    case MemberDowned(member) => manageDeadMember(member)
+    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
+    case DashboardIdentity => manageDashboardLookUpTable()
     case Tick =>
       val value = pickDecision
-      context become {
-        if (becomeTalkative(value.toInt)) receive else silentMoving
-      }
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
+      context become {
+        if (becomeTalkative(value.toInt)) talk else silentMoving
+      }
     case _ => log error "A sensor is not meant to be contacted"
   }
 
   def moving: Receive = {
-    case MemberUp(member) => manageNewMembers(member)
-    case MemberDowned(member) => manageDeadMembers(member)
+    case MemberUp(member) => manageNewMember(member)
+    case MemberDowned(member) => manageDeadMember(member)
+    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
+    case DashboardIdentity => manageDashboardLookUpTable()
     case Tick =>
       val value = pickDecision
       move(value.toInt)
-      //TODO: communicate to view name and coordinates
-      context unbecome()
+//      dashboardLookUpTable.foreach(
+//        ref => ref ! DashboardActor.SensorPosition(self.path.address.port.get.toString, Coordinate(x, y)))
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
+      context become talk
     case _ => log error "A sensor is not meant to be contacted"
   }
 
   def silentMoving: Receive = {
-    case MemberUp(member) => manageNewMembers(member)
-    case MemberDowned(member) => manageDeadMembers(member)
+    case MemberUp(member) => manageNewMember(member)
+    case MemberDowned(member) => manageDeadMember(member)
+    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
+    case DashboardIdentity => manageDashboardLookUpTable()
     case Tick =>
       val value = pickDecision
       move(value.toInt)
-      //TODO: communicate to view name and coordinates
-      context become silent
+      dashboardLookUpTable.foreach(
+        ref => log info self.path.toString)
+//        ref => ref ! DashboardActor.SensorPosition(self.path.address.port.get.toString, Coordinate(x, y)))
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
+      context become silent
     case _ => log error "A sensor is not meant to be contacted"
   }
 
   def silentWandering: Receive = {
-    case MemberUp(member) => manageNewMembers(member)
-    case MemberDowned(member) => manageDeadMembers(member)
+    case MemberUp(member) => manageNewMember(member)
+    case MemberDowned(member) => manageDeadMember(member)
+    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
+    case DashboardIdentity => manageDashboardLookUpTable()
     case Tick =>
       val value = pickDecision
       move(value.toInt)
       val outside = toPatch(Coordinate(x, y)).isEmpty
+      timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       context become {
         if (outside) silentWandering else
-          if (remainSilent(value.toInt)) silentMoving else moving
+        if (remainSilent(value.toInt)) silentMoving else moving
       }
-      timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
     case _ => log error "A sensor is not meant to be contacted"
   }
 
@@ -163,22 +191,35 @@ class SensorAgent extends Actor with ActorLogging with Timers{
     Responsiveness(((chosen + 0.5) * (decisionMaker.nextInt(1000) + 500)).milliseconds)
   }
 
-  private def manageNewMembers(member: Member): Unit = {
-    if (member.roles.contains("guardian")) {
-      guardians ::= member.address
-    }
-    if (member.roles.contains("dashboard")) {
-      dashboards ::= member.address
-    }
+  private def manageNewMember(member: Member): Unit = member match {
+    case m if member.roles.contains("guardian") =>
+      context.system.actorSelection(s"${m.address}/user/**") ! GuardianActor.IdentifyGuardian("sensor")
+    case m if member.roles.contains("dashboard") =>
+      context.system.actorSelection(s"${m.address}/user/**") ! DashboardActor.IdentifyDashboard("sensor")
+    case _ =>
   }
 
-  private def manageDeadMembers(member: Member): Unit = {
-    if (member.roles.contains("guardian")) {
-      guardians = guardians filterNot(address => address == member.address)
-    }
-    if (member.roles.contains("dashboard")) {
-      dashboards = dashboards filterNot(address => address == member.address)
-    }
+  private def manageStartUpMembers(members: SortedSet[Member]): Unit = {
+    val filtered = members.filter(member => member.status == MemberStatus.Up)
+      .filter(member => member.hasRole("guardian") || member.hasRole("dashboard"))
+      .partition(member => member.hasRole("guardian") || member.hasRole("dashboard"))
+    val guardians = filtered._1
+    val dashboards = filtered._2
+    guardians.foreach(g => context.system.actorSelection(s"${g.address}/user/**") ! GuardianActor.IdentifyGuardian("sensor"))
+    dashboards.foreach(d => context.system.actorSelection(s"${d.address}/user/**") ! GuardianActor.IdentifyGuardian("sensor"))
   }
 
+  private def manageGuardianLookUpTable(patch: String): Unit = {
+    guardianLookUpTable = guardianLookUpTable + (patch -> sender())
+    log debug s"$guardianLookUpTable" //THIS IS LOG DEBUG
+  }
+
+  private def manageDashboardLookUpTable(): Unit = {
+    dashboardLookUpTable = dashboardLookUpTable :+ sender()
+    log debug s"$dashboardLookUpTable" //THIS IS LOG DEBUG
+  }
+
+  private def manageDeadMember(member: Member): Unit = {
+    log info "HEY WE NEED TO FIX THIS PROBLEM AMIRITE"
+  }
 }

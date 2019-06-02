@@ -1,13 +1,23 @@
 package it.unibo.pcd1819.mapmonitoring.model
 
 import scala.concurrent.duration._
+import scala.util.Random
 
 object Environment {
-  val width: Double = 800
-  val height: Double = 600
+  final case class Coordinate(x: Double, y: Double)
+  final case class Boundary(northwest: Coordinate, southeast: Coordinate) {
+    def inside(c: Coordinate): Boolean =
+      c.x >= northwest.x && c.x <= southeast.x && c.y >= northwest.y && c.y <= southeast.y
+  }
+  final case class Patch(box: Boundary, name: String)
 
-  val horizontal: Int = 4
-  val vertical: Int = 3
+  private val r = Random
+
+  val width: Double = 600
+  val height: Double = 400
+
+  val horizontal: Int = 3
+  val vertical: Int = 2
   val patchNumber: Int = horizontal * vertical
 
   val dangerThreshold: Double = 70.0
@@ -22,12 +32,6 @@ object Environment {
 
   val patchesName: Seq[String] = patches.map(patch => patch.name)
 
-  final case class Coordinate(x: Double, y: Double)
-  final case class Boundary(northwest: Coordinate, southeast: Coordinate) {
-    def inside(c: Coordinate): Boolean =
-      c.x >= northwest.x && c.x <= southeast.x && c.y >= northwest.y && c.y <= southeast.y
-  }
-  final case class Patch(box: Boundary, name: String)
-
   def toPatch(c: Coordinate): Option[Patch] = patches.find(p => p.box.inside(c))
+  def randomPatch: String = patchesName(r.nextInt(patchesName.size))
 }

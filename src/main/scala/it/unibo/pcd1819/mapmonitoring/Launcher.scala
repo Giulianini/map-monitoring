@@ -10,8 +10,8 @@ object Launcher extends App {
   GuardianActor.main(Seq(guardianSeedPort.toString).toArray)
   DashboardActor.main(Seq(dashboardSeedPort.toString).toArray)
 
-  SensorAgent.main(Seq(5500.toString).toArray)
-  SensorAgent.main(Seq.empty.toArray)
+//  SensorAgent.main(Seq(5500.toString).toArray)
+//  SensorAgent.main(Seq.empty.toArray)
   GuardianActor.main(Seq.empty.toArray)
   GuardianActor.main(Seq.empty.toArray)
 }
