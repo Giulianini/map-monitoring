@@ -32,6 +32,8 @@ object Environment {
 
   val patchesName: Seq[String] = patches.map(patch => patch.name)
 
+  def toPatch(name: String): Option[Patch] = patches.find(p => p.name == name)
   def toPatch(c: Coordinate): Option[Patch] = patches.find(p => p.box.inside(c))
+
   def randomPatch: String = patchesName(r.nextInt(patchesName.size))
 }

@@ -13,8 +13,8 @@ object DashboardActor {
 
   sealed trait ViewInput
   final case class IdentifyDashboard(sender: String) extends ViewInput
-  final case class GuardianExistence(patch: String) extends ViewInput
   final case class SensorPosition(sensorId: String, c: Coordinate) extends ViewInput
+  final case class GuardianExistence(guardianId: String, patch: Patch) extends ViewInput
   final case class PreAlert(guardianId: String) extends ViewInput
   final case class PreAlertEnd(guardianId: String) extends ViewInput
   final case class Alert(patch: Patch) extends ViewInput
@@ -26,7 +26,6 @@ object DashboardActor {
         .withFallback(ConfigFactory.load("dashboard"))
 
     val system = ActorSystem(clusterName, config)
-
     system actorOf(DashboardActor.props, "dashboard")
   }
 }
@@ -41,6 +40,8 @@ class DashboardActor extends Actor with ActorLogging with Timers{
   override def receive: Receive = {
     case IdentifyDashboard("sensor") => sender() ! SensorAgent.DashboardIdentity
     case IdentifyDashboard("guardian") => sender() ! GuardianActor.DashboardIdentity
+    case GuardianExistence(id, patch) =>
+      log info s"new guardian discovered: $id, $patch"
     case SensorPosition(id, c) =>
       log info s"view received $id, $c"
     //TODO: update sensor position along with the provided coordinates.

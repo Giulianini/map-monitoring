@@ -41,6 +41,9 @@ object GuardianActor{
 class GuardianActor(private val patchName: String) extends Actor with ActorLogging with Timers{
 
   private val cluster = Cluster(context.system)
+  private val guardianId = cluster.selfMember.address.toString
+  private val actualPatch = toPatch(patchName).get
+
   private var consensusParticipants: Seq[ActorRef] = Seq()
   private var dashboardLookUpTable: Seq[ActorRef] = Seq()
 
@@ -89,11 +92,12 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
   private def definePartnership(patch: String): Unit = {
     if (this.patchName == patch) {
       consensusParticipants = consensusParticipants :+ sender()
-      log debug s"${consensusParticipants}" //THIS IS LOG DEBUG
+      log debug s"${consensusParticipants}"
     }
   }
 
   private def defineDashboard(): Unit = {
+    sender() ! DashboardActor.GuardianExistence(guardianId, actualPatch)
     dashboardLookUpTable = dashboardLookUpTable :+ sender()
   }
 

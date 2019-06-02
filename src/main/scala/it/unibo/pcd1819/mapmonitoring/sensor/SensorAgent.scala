@@ -63,8 +63,8 @@ class SensorAgent extends Actor with ActorLogging with Timers{
   override def receive: Receive = clusterBehaviour orElse {
     case CurrentClusterState(members, _, _, _, _) =>
       manageStartUpMembers(members)
-      self ! Tick
-      context become talk
+      //self ! Tick
+      //context become talk
     case _ => log info "How is this possible"
   }
 
@@ -125,8 +125,8 @@ class SensorAgent extends Actor with ActorLogging with Timers{
       val value = pickDecision
       move(value.toInt)
       log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
-//      dashboardLookUpTable.foreach(
-//        ref => ref ! DashboardActor.SensorPosition(self.path.address.port.get.toString, Coordinate(x, y)))
+      dashboardLookUpTable.foreach(
+        ref => ref ! DashboardActor.SensorPosition(cluster.selfMember.address.toString, Coordinate(x, y)))
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       log debug "moving to talk"
       context become talk
@@ -138,8 +138,8 @@ class SensorAgent extends Actor with ActorLogging with Timers{
       val value = pickDecision
       move(value.toInt)
       log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
-  //      dashboardLookUpTable.foreach(
-//        ref => ref ! DashboardActor.SensorPosition(self.path.address.port.get.toString, Coordinate(x, y)))
+      dashboardLookUpTable.foreach(
+        ref => ref ! DashboardActor.SensorPosition(cluster.selfMember.address.toString, Coordinate(x, y)))
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       log debug "silentMoving to silent"
       context become silent
