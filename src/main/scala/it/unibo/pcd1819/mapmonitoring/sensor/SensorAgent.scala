@@ -58,97 +58,110 @@ class SensorAgent extends Actor with ActorLogging with Timers{
     log info s"Sensor agent ${self.path} started with a ${nature.updateSpeed.toMillis} ms Tick"
   }
 
-  override def receive: Receive = {
+
+
+  override def receive: Receive = clusterBehaviour orElse {
     case CurrentClusterState(members, _, _, _, _) =>
       manageStartUpMembers(members)
       self ! Tick
       context become talk
-    case MemberUp(member) => manageNewMember(member)
-    case MemberDowned(member) => manageDeadMember(member)
-    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
-    case DashboardIdentity => manageDashboardLookUpTable()
     case _ => log info "How is this possible"
   }
 
-  def talk: Receive = {
-    case MemberUp(member) => manageNewMember(member)
-    case MemberDowned(member) => manageDeadMember(member)
-    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
-    case DashboardIdentity => manageDashboardLookUpTable()
+  private def clusterBehaviour: Receive = {
+    case MemberUp(member) => log debug "memberup";manageNewMember(member)
+    case MemberDowned(member) => log debug "memberdown";manageDeadMember(member)
+    case GuardianIdentity(patch) => log debug "guardIdentity";manageGuardianLookUpTable(patch)
+    case DashboardIdentity => log debug "dashIdentity";manageDashboardLookUpTable()
+  }
+
+  private def talk: Receive = clusterBehaviour orElse {
     case Tick =>
       val value = pickDecision
       val currentPatch = toPatch(Coordinate(x, y))
       if (currentPatch.nonEmpty){
-        log info "embe"
         guardianLookUpTable.filterKeys(key => key == currentPatch.get.name)
-          .values.foreach(ref => ref ! GuardianActor.SensorValue(value))
+          .values.foreach(ref => {
+          ref ! GuardianActor.SensorValue(value)
+          log debug s"Sending $value to $ref"
+        })
       }
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       context become {
-        if (remainSilent(value.toInt)) silentMoving else
-        if(currentPatch.isEmpty) silentWandering else moving
+        if (remainSilent(value.toInt)) {
+          log debug "talk to silentMoving"
+          silentMoving
+        } else {
+          if(currentPatch.isEmpty) {
+            log debug "talk to silentWandering"
+            silentWandering
+          } else {
+            log debug "talk to moving"
+            moving
+          }
+        }
       }
     case _ => log error s"$x A sensor is not meant to be contacted"
   }
 
-  def silent: Receive = {
-    case MemberUp(member) => manageNewMember(member)
-    case MemberDowned(member) => manageDeadMember(member)
-    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
-    case DashboardIdentity => manageDashboardLookUpTable()
+  private def silent: Receive = clusterBehaviour orElse {
     case Tick =>
       val value = pickDecision
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       context become {
-        if (becomeTalkative(value.toInt)) talk else silentMoving
+        if (becomeTalkative(value.toInt)){
+          log debug "silent to talk"
+          talk
+        } else {
+          log debug "silent to silentMoving"
+          silentMoving
+        }
       }
     case _ => log error "A sensor is not meant to be contacted"
   }
 
-  def moving: Receive = {
-    case MemberUp(member) => manageNewMember(member)
-    case MemberDowned(member) => manageDeadMember(member)
-    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
-    case DashboardIdentity => manageDashboardLookUpTable()
+  private def moving: Receive = clusterBehaviour orElse {
     case Tick =>
       val value = pickDecision
       move(value.toInt)
+      log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
 //      dashboardLookUpTable.foreach(
 //        ref => ref ! DashboardActor.SensorPosition(self.path.address.port.get.toString, Coordinate(x, y)))
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
+      log debug "moving to talk"
       context become talk
     case _ => log error "A sensor is not meant to be contacted"
   }
 
-  def silentMoving: Receive = {
-    case MemberUp(member) => manageNewMember(member)
-    case MemberDowned(member) => manageDeadMember(member)
-    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
-    case DashboardIdentity => manageDashboardLookUpTable()
+  private def silentMoving: Receive = clusterBehaviour orElse {
     case Tick =>
       val value = pickDecision
       move(value.toInt)
-      dashboardLookUpTable.foreach(
-        ref => log info self.path.toString)
+      log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
+  //      dashboardLookUpTable.foreach(
 //        ref => ref ! DashboardActor.SensorPosition(self.path.address.port.get.toString, Coordinate(x, y)))
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
+      log debug "silentMoving to silent"
       context become silent
     case _ => log error "A sensor is not meant to be contacted"
   }
 
-  def silentWandering: Receive = {
-    case MemberUp(member) => manageNewMember(member)
-    case MemberDowned(member) => manageDeadMember(member)
-    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
-    case DashboardIdentity => manageDashboardLookUpTable()
+  private def silentWandering: Receive = clusterBehaviour orElse {
     case Tick =>
       val value = pickDecision
       move(value.toInt)
       val outside = toPatch(Coordinate(x, y)).isEmpty
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
-      context become {
-        if (outside) silentWandering else
-        if (remainSilent(value.toInt)) silentMoving else moving
+      if(!outside) {
+        context become {
+          if (remainSilent(value.toInt)) {
+            log debug "silentWandering to silentMoving"
+            silentMoving
+          } else {
+            log debug "silentWandering to moving"
+            moving
+          }
+        }
       }
     case _ => log error "A sensor is not meant to be contacted"
   }
