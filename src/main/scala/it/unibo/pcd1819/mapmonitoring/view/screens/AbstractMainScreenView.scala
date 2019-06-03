@@ -1,15 +1,16 @@
 package it.unibo.pcd1819.mapmonitoring.view.screens
 
-import java.util.stream.IntStream
-
 import com.jfoenix.controls._
-import it.unibo.pcd1819.mapmonitoring.view.utilities.{JavafxEnums, ViewUtilities}
+import eu.hansolo.enzo.ledbargraph.LedBargraphBuilder
+import it.unibo.pcd1819.mapmonitoring.view.utilities.{JavafxEnums, LedId, PatchControlFactory, ViewUtilities}
 import it.unibo.pcd1819.mapmonitoring.view.utilities.JavafxEnums.ShapeType
 import javafx.fxml.FXML
 import javafx.scene.canvas.Canvas
 import javafx.scene.input.MouseButton
-import javafx.scene.layout.{AnchorPane, BorderPane}
+import javafx.scene.layout.{AnchorPane, BorderPane, HBox}
 import org.kordamp.ikonli.material.Material
+
+import scala.collection.mutable
 
 trait View {
   def startSimulation(): Unit
@@ -23,9 +24,9 @@ protected abstract class AbstractMainScreenView() extends View {
   @FXML protected var toolbar: JFXToolbar = _
   @FXML protected var buttonStartPause: JFXButton = _
   @FXML protected var comboBoxShape: JFXComboBox[ShapeType.Value] = _
-  @FXML protected var comboBoxOptimize: JFXComboBox[String] = _
   @FXML protected var canvasPane: AnchorPane = _
   @FXML protected var canvas: Canvas = _
+  protected var patchesControls: mutable.Map[(Int, Int), HBox] = _
 
   @FXML def initialize(): Unit = {
     this.assertNodeInjected()
@@ -33,6 +34,7 @@ protected abstract class AbstractMainScreenView() extends View {
     this.prepareHideToolbar()
     this.prepareCombos()
     this.showPopupInfo()
+    this.preparePatches()
   }
 
   private def showPopupInfo(): Unit = {
@@ -45,7 +47,6 @@ protected abstract class AbstractMainScreenView() extends View {
     assert(toolbar != null, "fx:id=\"toolbar\" was not injected: check your FXML file 'MainScreen.fxml'.")
     assert(buttonStartPause != null, "fx:id=\"buttonStartPause\" was not injected: check your FXML file 'MainScreen.fxml'.")
     assert(comboBoxShape != null, "fx:id=\"comboBoxShape\" was not injected: check your FXML file 'MainScreen.fxml'.")
-    assert(comboBoxOptimize != null, "fx:id=\"comboBoxOptimize\" was not injected: check your FXML file 'MainScreen.fxml'.")
     assert(canvasPane != null, "fx:id=\"canvasPane\" was not injected: check your FXML file 'MainScreen.fxml'.")
     assert(canvas != null, "fx:id=\"canvas\" was not injected: check your FXML file 'MainScreen.fxml'.")
   }
@@ -53,6 +54,11 @@ protected abstract class AbstractMainScreenView() extends View {
   private def prepareButtons(): Unit = {
     this.buttonStartPause.setGraphic(this.startIcon)
     this.buttonStartPause setOnAction (_ => {
+      val guardianLedbarBuilder: LedBargraphBuilder[_] = LedBargraphBuilder.create()
+      guardianLedbarBuilder.noOfLeds(5)
+      guardianLedbarBuilder
+      this.patchesControls((0, 0)).getChildren.remove(1)
+      this.patchesControls((0, 0)).getChildren.add(1, guardianLedbarBuilder.build())
       this.buttonStartPause.getGraphic match {
         case this.pauseIcon => this.buttonStartPause setGraphic this.startIcon
         case this.startIcon => this.buttonStartPause setGraphic this.pauseIcon
@@ -62,18 +68,20 @@ protected abstract class AbstractMainScreenView() extends View {
 
   private def prepareCombos(): Unit = {
     ShapeType.values.foreach(this.comboBoxShape.getItems.add(_))
-    this.comboBoxShape.getSelectionModel.select(1)
-    IntStream.range(Constants.MIN_SHAPE_POLYGON, Constants.MAX_SHAPE_POLYGON).forEach({
-      i => this.comboBoxOptimize.getItems.add(i + "Polygons")
+  }
+
+  def preparePatches(): Unit = {
+    this.patchesControls = PatchControlFactory.makeControlsBox(this.canvasPane, (2, 3), e => {
+      val led = e.getSource.asInstanceOf[LedId]
+      led.setOn(false)
     })
-    this.comboBoxOptimize.getSelectionModel.select(Constants.DEFAULT_SHAPE_POLYGON)
   }
 
   private def prepareHideToolbar(): Unit = {
     this.mainBorder.setOnMouseClicked(ev => {
-      if (ev.getButton == MouseButton.MIDDLE && this.toolbar.isVisible) {
+      if (ev.getButton == MouseButton.SECONDARY && this.toolbar.isVisible) {
         this.toolbar setVisible false
-      } else if (ev.getButton == MouseButton.MIDDLE && !this.toolbar.isVisible) {
+      } else if (ev.getButton == MouseButton.SECONDARY && !this.toolbar.isVisible) {
         this.toolbar setVisible true
       }
     })

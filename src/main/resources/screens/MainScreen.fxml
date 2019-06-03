@@ -5,11 +5,11 @@
 <?import com.jfoenix.controls.JFXToolbar?>
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.canvas.Canvas?>
+<?import javafx.scene.control.Separator?>
 <?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
-
 
 <BorderPane fx:id="mainBorder" xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1">
    <top>
@@ -29,20 +29,19 @@
                         <Insets />
                      </HBox.margin>
                   </JFXComboBox>
-                        <JFXComboBox id="comboBox" fx:id="comboBoxOptimize" promptText="Polygons">
-                            <HBox.margin>
-                                <Insets />
-                            </HBox.margin>
-                        </JFXComboBox>
                     </children>
                 </HBox>
          </top>
         </JFXToolbar>
    </top>
    <center>
-      <AnchorPane fx:id="canvasPane" maxHeight="400.0" maxWidth="600.0" minHeight="400.0" minWidth="600.0">
+      <AnchorPane fx:id="canvasPane" maxHeight="400.0" maxWidth="600.0" minHeight="400.0" minWidth="600.0" prefHeight="400.0" prefWidth="600.0">
          <children>
             <Canvas fx:id="canvas" height="400.0" width="600.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+            <Separator layoutX="-9.0" layoutY="261.0" prefWidth="200.0" AnchorPane.bottomAnchor="200.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="200.0" />
+            <Separator layoutX="396.0" orientation="VERTICAL" prefHeight="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="400.0" AnchorPane.rightAnchor="200.0" AnchorPane.topAnchor="0.0" />
+            <Separator layoutX="169.0" layoutY="100.0" orientation="VERTICAL" prefHeight="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="200.0" AnchorPane.rightAnchor="400.0" AnchorPane.topAnchor="0.0" />
+            <Separator layoutX="150.0" layoutY="41.0" prefWidth="200.0" AnchorPane.bottomAnchor="400.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
          </children>
       </AnchorPane>
    </center>

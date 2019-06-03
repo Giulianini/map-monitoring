@@ -80,3 +80,10 @@
 }
 
 
+/*Patch*/
+#hansolo-led {
+    -fx-min-width: 40;
+    -fx-min-height: 40;
+}
+
+
