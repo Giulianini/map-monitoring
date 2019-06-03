@@ -1,16 +1,18 @@
 package it.unibo.pcd1819.mapmonitoring.guardian
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Identify, Props, Timers}
-import akka.cluster.{Cluster, Member, MemberStatus}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Identify, Props, ReceiveTimeout, Stash, Timers}
 import akka.cluster.ClusterEvent.{CurrentClusterState, MemberDowned, MemberUp}
+import akka.cluster.{Cluster, Member, MemberStatus}
 import com.typesafe.config.ConfigFactory
-import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor.{DashboardIdentity, GuardianIdentity, IdentifyGuardian, SensorValue}
+import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor.{DashboardIdentity, GuardianIdentity, IdentifyGuardian, NewGuardianData, SensorValue, Step}
+import it.unibo.pcd1819.mapmonitoring.guardian.consensus.ConsensusData
 import it.unibo.pcd1819.mapmonitoring.model.Environment._
 import it.unibo.pcd1819.mapmonitoring.model.NetworkConstants._
 import it.unibo.pcd1819.mapmonitoring.sensor.SensorAgent
 import it.unibo.pcd1819.mapmonitoring.view.DashboardActor
 
 import scala.collection.immutable.SortedSet
+import scala.concurrent.duration._
 
 object GuardianActor{
   def props(patchName: String) = Props(new GuardianActor(patchName))
@@ -26,6 +28,14 @@ object GuardianActor{
   final case class SensorValue(v: Double) extends GuardianInput
   final case class GuardianValue(avg: Double) extends GuardianInput
 
+  // TODO update serialization-bindings in cluster.conf
+  private sealed trait ConsensusMessage
+  private final case object Vote extends ConsensusMessage
+  private final case class NewGuardianData(data: Seq[GuardianInfo])
+  private final case object Step
+
+  private val maxFaultyActors = 3
+
   def main(args: Array[String]): Unit = {
     val port = if(args.isEmpty) "0" else args(0)
     val patch = if(args.isEmpty || args.length == 1) randomPatch else args(1)
@@ -38,7 +48,7 @@ object GuardianActor{
   }
 }
 
-class GuardianActor(private val patchName: String) extends Actor with ActorLogging with Timers{
+class GuardianActor(private val patchName: String) extends Actor with ActorLogging with Timers with Stash {
 
   private val cluster = Cluster(context.system)
   private val guardianId = cluster.selfMember.address.toString
@@ -47,6 +57,7 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
   private var consensusParticipants: Seq[ActorRef] = Seq()
   private var dashboardLookUpTable: Seq[ActorRef] = Seq()
 
+  private var consensusData: ConsensusData = ConsensusData()
 
   override def preStart(): Unit = {
     super.preStart()
@@ -76,6 +87,53 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
 
   private def listening: Receive = clusterBehaviour orElse sensorListening orElse {
     case _ =>
+  }
+
+  private def consensusBroadcast: Receive = {
+    case Step =>
+      this.consensusData match {
+        case ConsensusData(_, _, n, _) if n < GuardianActor.maxFaultyActors =>
+          this.consensusData = this.consensusData.incStep()
+          val notSent = this.consensusData.notSent
+          ??? // TODO sent notSent to guardians
+          this.consensusData = this.consensusData.markAsSent(notSent)
+          unstashAll()
+          context setReceiveTimeout 3.seconds
+          context become consensusReceive
+        case _ =>
+          val decision = this.consensusData.decide(this.consensusParticipants.size)
+          ??? // TODO send decision
+          this.consensusData = ConsensusData()
+          context unbecome()
+      }
+    case NewGuardianData(_) => stash()
+    case _ => {
+      log debug "Unexpected message in consensusBroadcast behaviour"
+//      stash() TODO ???
+    }
+  }
+
+  private def consensusReceive: Receive = {
+    def receiveToBroadcast(): Unit = {
+      this.consensusData = this.consensusData.resetReceived()
+      self ! Step
+      context setReceiveTimeout Duration.Undefined
+      context become consensusBroadcast
+    }
+    {
+      case NewGuardianData(data) if sender().path != self.path => // TODO is this the appropriate guard?
+        this.consensusData = this.consensusData.receive(data)
+        this.consensusData match {
+          case ConsensusData(_, _, _, n) if n == this.consensusParticipants.size - 1 =>
+            receiveToBroadcast()
+          case _ =>
+        }
+      case ReceiveTimeout =>
+        receiveToBroadcast()
+      case _ =>
+        log debug "Unexpected message in consensusBroadcast behaviour"
+        ??? // TODO stash() ?
+    }
   }
 
   private def manageStartUpMembers(members: SortedSet[Member]): Unit = {
