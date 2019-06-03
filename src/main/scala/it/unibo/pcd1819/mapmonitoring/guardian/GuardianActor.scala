@@ -133,7 +133,7 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
         receiveToBroadcast()
       case Vote => // throw away
       case _ =>
-        log debug "Unexpected message in consensusBroadcast behaviour"
+        log debug "Unexpected message in consensusReceive behaviour"
         ??? // TODO stash() ?
     }
   }
