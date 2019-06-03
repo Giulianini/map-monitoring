@@ -4,66 +4,40 @@
 <?import com.jfoenix.controls.JFXComboBox?>
 <?import com.jfoenix.controls.JFXToolbar?>
 <?import javafx.geometry.Insets?>
-<?import javafx.scene.control.Label?>
+<?import javafx.scene.canvas.Canvas?>
 <?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
-<?import javafx.scene.layout.StackPane?>
-<?import javafx.scene.text.Font?>
-<AnchorPane id="mainBorder" fx:id="mainBorder" minHeight="600.0" minWidth="800.0"
-            xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1">
-    <children>
-        <StackPane id="stack-3D" fx:id="stack3D" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0"
-                   AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0"/>
-        <JFXToolbar id="toobar" fx:id="toolbar" maxHeight="30.0" AnchorPane.leftAnchor="0.0"
-                    AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-            <left>
-                <JFXButton id="buttonPopup" fx:id="buttonPopup">
-                    <font>
-                        <Font size="15.0"/>
-                    </font>
-                </JFXButton>
-            </left>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane fx:id="mainBorder" xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1">
+    <top>
+        <JFXToolbar id="toobar" fx:id="toolbar" BorderPane.alignment="CENTER">
             <right>
-                <HBox id="hboxExecutionTime" alignment="CENTER_RIGHT" maxWidth="330.0" minWidth="330.0"
-                      BorderPane.alignment="CENTER">
-                    <children>
-                        <Label text="Time:">
-                            <font>
-                                <Font size="15.0"/>
-                            </font>
-                            <HBox.margin>
-                                <Insets right="10.0"/>
-                            </HBox.margin>
-                        </Label>
-                        <Label fx:id="labelExecutionTime" minWidth="100.0"/>
-                        <JFXButton id="buttonStartStop" fx:id="buttonStep"/>
-                        <JFXButton id="buttonStartStop" fx:id="buttonStartPause">
-                            <HBox.margin>
-                                <Insets/>
-                            </HBox.margin>
-                        </JFXButton>
-                        <JFXButton id="buttonStartStop" fx:id="buttonStop"/>
-                    </children>
-                </HBox>
+                <VBox BorderPane.alignment="CENTER" />
             </right>
             <padding>
-                <Insets bottom="5.0" left="5.0" right="5.0" top="5.0"/>
+                <Insets bottom="10.0" left="5.0" right="5.0" top="5.0" />
             </padding>
-            <center>
-                <HBox id="hboxGenerateParticles" alignment="CENTER" maxWidth="400.0" spacing="20.0"
-                      BorderPane.alignment="CENTER">
+            <top>
+                <HBox id="hboxGenerateParticles" alignment="CENTER_LEFT" spacing="20.0" BorderPane.alignment="CENTER">
                     <children>
-                        <JFXButton fx:id="buttonCreateParticles"/>
-                        <JFXComboBox id="comboBox" fx:id="comboBoxShape" promptText="Shape"/>
-                        <JFXComboBox id="comboBox" fx:id="comboBoxOptimize" promptText="Polygons">
+                        <JFXButton id="buttonStartStop" fx:id="buttonStartPause" />
+                        <JFXComboBox id="comboBox" fx:id="comboBoxShape" promptText="Shape" HBox.hgrow="ALWAYS">
                             <HBox.margin>
-                                <Insets/>
+                                <Insets />
                             </HBox.margin>
                         </JFXComboBox>
                     </children>
                 </HBox>
-            </center>
+            </top>
         </JFXToolbar>
-    </children>
-</AnchorPane>
+    </top>
+    <center>
+        <AnchorPane id="canvasPane" fx:id="canvasPane" BorderPane.alignment="CENTER">
+            <children>
+                <Canvas fx:id="canvas" height="400.0" width="600.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+            </children>
+        </AnchorPane>
+    </center>
+</BorderPane>
