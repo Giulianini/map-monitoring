@@ -1,8 +1,8 @@
 package it.unibo.pcd1819.mapmonitoring.view.screens
 
 import com.jfoenix.controls._
-import eu.hansolo.enzo.ledbargraph.LedBargraphBuilder
-import it.unibo.pcd1819.mapmonitoring.view.utilities.{JavafxEnums, LedId, PatchControlFactory, ViewUtilities}
+import it.unibo.pcd1819.mapmonitoring.model.Environment
+import it.unibo.pcd1819.mapmonitoring.view.utilities._
 import it.unibo.pcd1819.mapmonitoring.view.utilities.JavafxEnums.ShapeType
 import javafx.fxml.FXML
 import javafx.scene.canvas.Canvas
@@ -10,6 +10,7 @@ import javafx.scene.input.MouseButton
 import javafx.scene.layout.{AnchorPane, BorderPane, HBox}
 import org.kordamp.ikonli.material.Material
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 trait View {
@@ -20,15 +21,17 @@ trait View {
 protected abstract class AbstractMainScreenView() extends View {
   private val startIcon = ViewUtilities iconSetter(Material.PLAY_ARROW, JavafxEnums.BIG_ICON)
   private val pauseIcon = ViewUtilities iconSetter(Material.PAUSE, JavafxEnums.BIG_ICON)
+  private var _patchesControls: mutable.Map[String, (LedPatch, HBox)] = _
+
   @FXML protected var mainBorder: BorderPane = _
   @FXML protected var toolbar: JFXToolbar = _
   @FXML protected var buttonStartPause: JFXButton = _
   @FXML protected var comboBoxShape: JFXComboBox[ShapeType.Value] = _
   @FXML protected var canvasPane: AnchorPane = _
   @FXML protected var canvas: Canvas = _
-  protected var patchesControls: mutable.Map[(Int, Int), HBox] = _
 
   @FXML def initialize(): Unit = {
+    this.initCanvas()
     this.assertNodeInjected()
     this.prepareButtons()
     this.prepareHideToolbar()
@@ -51,14 +54,21 @@ protected abstract class AbstractMainScreenView() extends View {
     assert(canvas != null, "fx:id=\"canvas\" was not injected: check your FXML file 'MainScreen.fxml'.")
   }
 
+  def initCanvas(): Unit = {
+    this.canvasPane.setMinWidth(Environment.width)
+    this.canvasPane.setMinHeight(Environment.height)
+    this.canvasPane.setMaxWidth(Environment.width)
+    this.canvasPane.setMaxHeight(Environment.height)
+    this.canvas.setWidth(Environment.width)
+    this.canvas.setHeight(Environment.height)
+    PatchControlFactory.makeSeparator(this.canvasPane)
+  }
+
   private def prepareButtons(): Unit = {
     this.buttonStartPause.setGraphic(this.startIcon)
     this.buttonStartPause setOnAction (_ => {
-      val guardianLedbarBuilder: LedBargraphBuilder[_] = LedBargraphBuilder.create()
-      guardianLedbarBuilder.noOfLeds(5)
-      guardianLedbarBuilder
-      this.patchesControls((0, 0)).getChildren.remove(1)
-      this.patchesControls((0, 0)).getChildren.add(1, guardianLedbarBuilder.build())
+      this.addGuardian("A", "bombo")
+      this.setGuardianBlinking("bombo", blinking = true)
       this.buttonStartPause.getGraphic match {
         case this.pauseIcon => this.buttonStartPause setGraphic this.startIcon
         case this.startIcon => this.buttonStartPause setGraphic this.pauseIcon
@@ -71,9 +81,9 @@ protected abstract class AbstractMainScreenView() extends View {
   }
 
   def preparePatches(): Unit = {
-    this.patchesControls = PatchControlFactory.makeControlsBox(this.canvasPane, (2, 3), e => {
-      val led = e.getSource.asInstanceOf[LedId]
-      led.setOn(false)
+    this._patchesControls = PatchControlFactory.makeControlsBox(this.canvasPane, e => {
+      val led = e.getSource.asInstanceOf[LedPatch]
+      led.setOn(!led.isOn)
     })
   }
 
@@ -86,6 +96,25 @@ protected abstract class AbstractMainScreenView() extends View {
       }
     })
   }
+
+  def patchesControls: mutable.Map[String, (LedPatch, HBox)] = this._patchesControls
+  def addGuardian(patchName: String, guardianName: String): Unit = {
+    if (!guardianExists(guardianName)) this._patchesControls(patchName)._2.getChildren.add(LedGuardian(guardianName))
+  }
+  def setPatchBlinking(patchName: String, blinking: Boolean): Unit = this._patchesControls(patchName)._1.setBlinking(blinking)
+  def setGuardianBlinking(guardianName: String, blinking: Boolean): Unit = {
+    val guardian = this._patchesControls.values
+      .flatMap(p => p._2.getChildren.asScala)
+      .map(k => k.asInstanceOf[LedGuardian])
+      .find(g => g.name == guardianName)
+    if (guardian.isDefined) guardian.get.setBlinking(blinking) else
+      ViewUtilities.showNotificationPopup("Error", "Guardian not exists", JavafxEnums.MEDIUM_DURATION, JavafxEnums.ERROR_NOTIFICATION, null)
+  }
+
+  private def guardianExists(guardianName: String): Boolean = this._patchesControls.values
+    .flatMap(p => p._2.getChildren.asScala)
+    .map(k => k.asInstanceOf[LedGuardian])
+    .exists(g => g.name == guardianName)
 
   def log(message: String): Unit
   def startSimulation(): Unit

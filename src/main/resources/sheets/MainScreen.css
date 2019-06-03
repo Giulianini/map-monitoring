@@ -81,9 +81,15 @@
 
 
 /*Patch*/
-#hansolo-led {
+#patch-led {
     -fx-min-width: 40;
     -fx-min-height: 40;
 }
 
+#guardian-led {
+    -fx-min-width: 20;
+    -fx-min-height: 20;
+}
 
+#canvasPane {
+}

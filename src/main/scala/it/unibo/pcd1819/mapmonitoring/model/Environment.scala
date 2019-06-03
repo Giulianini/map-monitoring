@@ -16,19 +16,21 @@ object Environment {
   val width: Double = 600
   val height: Double = 400
 
-  val horizontal: Int = 3
-  val vertical: Int = 2
-  val patchNumber: Int = horizontal * vertical
+  val column: Int = 3
+  val row: Int = 2
+  val patchNumber: Int = column * row
+  val patchWidth = width / column
+  val patchHeigth = height / row
 
   val dangerThreshold: Double = 70.0
   val dangerDurationThreshold: FiniteDuration = 2000.milliseconds
 
   val patches: Seq[Patch] =
-    (for (i <- 0 until vertical; j <- 0 until horizontal) yield (i, j))
-    .map(pair => (Coordinate((width/horizontal)*pair._2, (height/vertical)*pair._1), Coordinate((width/horizontal)*(pair._2 + 1), (height/vertical)*(pair._1 + 1))))
-    .map(pair => Boundary(pair._1, pair._2))
-    .zip ('A' to 'Z')
-    .map (pair => Patch(pair._1, pair._2.toString))
+    (for (i <- 0 until row; j <- 0 until column) yield (i, j))
+      .map(pair => (Coordinate((width / column) * pair._2, (height / row) * pair._1), Coordinate((width / column) * (pair._2 + 1), (height / row) * (pair._1 + 1))))
+      .map(pair => Boundary(pair._1, pair._2))
+      .zip('A' to 'Z')
+      .map(pair => Patch(pair._1, pair._2.toString))
 
   val patchesName: Seq[String] = patches.map(patch => patch.name)
 
