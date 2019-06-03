@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Identify, Props, 
 import akka.cluster.ClusterEvent.{CurrentClusterState, MemberDowned, MemberUp}
 import akka.cluster.{Cluster, Member, MemberStatus}
 import com.typesafe.config.ConfigFactory
-import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor.{DashboardIdentity, GuardianIdentity, IdentifyGuardian, NewGuardianData, SensorValue, Step}
+import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor.{DashboardIdentity, GuardianIdentity, IdentifyGuardian, NewGuardianData, SensorValue, Step, Vote}
 import it.unibo.pcd1819.mapmonitoring.guardian.consensus.ConsensusData
 import it.unibo.pcd1819.mapmonitoring.model.Environment._
 import it.unibo.pcd1819.mapmonitoring.model.NetworkConstants._
@@ -107,6 +107,7 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
           context unbecome()
       }
     case NewGuardianData(_) => stash()
+    case Vote => // throw away
     case _ => {
       log debug "Unexpected message in consensusBroadcast behaviour"
 //      stash() TODO ???
@@ -130,6 +131,7 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
         }
       case ReceiveTimeout =>
         receiveToBroadcast()
+      case Vote => // throw away
       case _ =>
         log debug "Unexpected message in consensusBroadcast behaviour"
         ??? // TODO stash() ?
