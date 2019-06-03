@@ -16,6 +16,14 @@ import scala.util.Random
 import scala.concurrent.duration.FiniteDuration
 
 
+object ye extends App {
+  var map: Map[String, Int] = Map()
+  map = map + ("a" -> 1)
+  map = map + ("a" -> 2)
+  map = map + ("b" -> 2)
+  println(map.toString)
+}
+
 object SensorAgent {
   def props = Props(classOf[SensorAgent])
 
@@ -44,7 +52,7 @@ class SensorAgent extends Actor with ActorLogging with Timers{
   private val decisionMaker = Random
   private val nature = pickNature
 
-  private var guardianLookUpTable: Map[String, ActorRef] = Map()
+  private var guardianLookUpTable: Map[String, Seq[ActorRef]] = Map()
   private var dashboardLookUpTable: Seq[ActorRef] = Seq()
 
   private var y: Double = _
@@ -63,16 +71,16 @@ class SensorAgent extends Actor with ActorLogging with Timers{
   override def receive: Receive = clusterBehaviour orElse {
     case CurrentClusterState(members, _, _, _, _) =>
       manageStartUpMembers(members)
-      //self ! Tick
-      //context become talk
+      self ! Tick
+      context become talk
     case _ => log info "How is this possible"
   }
 
   private def clusterBehaviour: Receive = {
-    case MemberUp(member) => log debug "memberup";manageNewMember(member)
-    case MemberDowned(member) => log debug "memberdown";manageDeadMember(member)
-    case GuardianIdentity(patch) => log debug "guardIdentity";manageGuardianLookUpTable(patch)
-    case DashboardIdentity => log debug "dashIdentity";manageDashboardLookUpTable()
+    case MemberUp(member) => manageNewMember(member)
+    case MemberDowned(member) => manageDeadMember(member)
+    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
+    case DashboardIdentity => manageDashboardLookUpTable()
   }
 
   private def talk: Receive = clusterBehaviour orElse {
@@ -80,11 +88,12 @@ class SensorAgent extends Actor with ActorLogging with Timers{
       val value = pickDecision
       val currentPatch = toPatch(Coordinate(x, y))
       if (currentPatch.nonEmpty){
-        guardianLookUpTable.filterKeys(key => key == currentPatch.get.name)
-          .values.foreach(ref => {
-          ref ! GuardianActor.SensorValue(value)
-          log debug s"Sending $value to $ref"
-        })
+        if(guardianLookUpTable.contains(currentPatch.get.name)) {
+          guardianLookUpTable(currentPatch.get.name).foreach(ref => {
+            ref ! GuardianActor.SensorValue(value)
+            log debug s"SENDING $value to $ref"
+          })
+        }
       }
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       context become {
@@ -223,13 +232,14 @@ class SensorAgent extends Actor with ActorLogging with Timers{
   }
 
   private def manageGuardianLookUpTable(patch: String): Unit = {
-    guardianLookUpTable = guardianLookUpTable + (patch -> sender())
-    log debug s"$guardianLookUpTable" //THIS IS LOG DEBUG
+    val updatedValues = if (guardianLookUpTable.contains(patch)) guardianLookUpTable(patch) :+ sender() else Seq(sender())
+    guardianLookUpTable = guardianLookUpTable + (patch -> updatedValues)
+    log debug s"$guardianLookUpTable"
   }
 
   private def manageDashboardLookUpTable(): Unit = {
     dashboardLookUpTable = dashboardLookUpTable :+ sender()
-    log debug s"$dashboardLookUpTable" //THIS IS LOG DEBUG
+    log debug s"$dashboardLookUpTable"
   }
 
   private def manageDeadMember(member: Member): Unit = {
