@@ -27,6 +27,6 @@ object JavafxEnums {
   case object SHORT_DURATION extends Notification_Duration(3)
 
   object ShapeType extends Enumeration {
-    val CYLINDER, SPHERE, CUBE = Value
+    val CIRCLE, SQUARE = Value
   }
 }

@@ -20,13 +20,11 @@ object GuardianActor{
   private[this] final case object Tick
 
   sealed trait GuardianInput
-  final case object Opinion extends GuardianInput
   final case object EndAlert extends GuardianInput
   final case class IdentifyGuardian(s: String) extends GuardianInput
   final case class GuardianIdentity(patch: String)
   final case object DashboardIdentity extends GuardianInput
   final case class SensorValue(v: Double) extends GuardianInput
-  final case class GuardianValue(avg: Double) extends GuardianInput
 
   // TODO update serialization-bindings in cluster.conf
   private sealed trait ConsensusMessage
@@ -71,7 +69,7 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
     case DashboardIdentity => defineDashboard()
     case IdentifyGuardian("sensor") => sender() ! SensorAgent.GuardianIdentity(patchName)
     case IdentifyGuardian("guardian") => sender() ! GuardianActor.GuardianIdentity(patchName)
-    case IdentifyGuardian("dashboard") =>
+    case IdentifyGuardian("dashboard") => sender() ! DashboardActor.GuardianExistence(cluster.selfMember, guardianId, toPatch(patchName).get)
   }
 
   private def sensorListening: Receive = {
@@ -157,7 +155,7 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
   }
 
   private def defineDashboard(): Unit = {
-    sender() ! DashboardActor.GuardianExistence(guardianId, actualPatch)
+    sender() ! DashboardActor.GuardianExistence(cluster.selfMember, guardianId, actualPatch)
     dashboardLookUpTable = dashboardLookUpTable :+ sender()
   }
 
