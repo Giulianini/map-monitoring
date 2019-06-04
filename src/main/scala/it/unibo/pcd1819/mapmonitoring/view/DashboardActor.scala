@@ -1,6 +1,6 @@
 package it.unibo.pcd1819.mapmonitoring.view
 
-import akka.actor.{Actor, ActorLogging, ActorSystem, Props, Timers}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Timers}
 import akka.cluster.{Cluster, Member, MemberStatus}
 import akka.cluster.ClusterEvent.{CurrentClusterState, MemberDowned, MemberUp}
 import com.typesafe.config.ConfigFactory
@@ -13,7 +13,7 @@ import it.unibo.pcd1819.mapmonitoring.view.screens.{ActorObserver, MainScreenVie
 
 import scala.collection.immutable.SortedSet
 
-case class DashboardActorState(guardians: Map[String, Patch], guardianMembers: Map[Member, String])
+case class DashboardActorState(guardians: Map[(ActorRef, Member, String), Patch])
 
 class DashboardActor extends Actor with ActorLogging with Timers {
   private val cluster = Cluster(context.system)
@@ -24,7 +24,7 @@ class DashboardActor extends Actor with ActorLogging with Timers {
     super.preStart()
     cluster.subscribe(self, classOf[MemberUp], classOf[MemberDowned])
   }
-  override def receive: Receive = onMessage(DashboardActorState(Map(), Map()))
+  override def receive: Receive = onMessage(DashboardActorState(Map()))
 
   private def onMessage(state: DashboardActorState): Receive = {
     case CurrentClusterState(members, _, _, _, _) => manageStartUpMembers(members)
@@ -67,16 +67,19 @@ class DashboardActor extends Actor with ActorLogging with Timers {
   }
 
   private def manageNewGuardian(state: DashboardActorState, member: Member, id: String, patch: Patch): Unit = {
-    context.become(onMessage(state.copy(state.guardians + (id -> patch), state.guardianMembers + (member -> id))))
+    context.become(onMessage(state.copy(state.guardians + ((sender(), member, id) -> patch))))
   }
 
   private def manageDeadMember(state: DashboardActorState, m: Member): Unit = {
-    context.become(onMessage(state.copy(state.guardians - state.guardianMembers(m), state.guardianMembers - m)))
+    val key = state.guardians.find(p => p._1._2 == m).get._1
+    context.become(onMessage(state.copy(state.guardians - key)))
   }
 
   private def endAlertAllGuardian(state: DashboardActorState, patch: Patch): Unit = {
-    state.guardianMembers.foreach(g => log info s"Member: ${g._1.toString()}")
-    state.guardians.filter(pair => pair._2 == patch).map(p => p._1).foreach(g => log info s"End alert all guardian: $g")
+    state.guardians.filter(pair => pair._2 == patch).map(p => p._1._1).foreach(g => {
+      log info s"Guardian end alert: $g"
+      g ! GuardianActor.EndAlert
+    })
   }
 }
 
