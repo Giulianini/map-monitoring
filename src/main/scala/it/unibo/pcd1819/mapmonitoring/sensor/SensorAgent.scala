@@ -15,15 +15,6 @@ import scala.concurrent.duration._
 import scala.util.Random
 import scala.concurrent.duration.FiniteDuration
 
-
-object ye extends App {
-  var map: Map[String, Int] = Map()
-  map = map + ("a" -> 1)
-  map = map + ("a" -> 2)
-  map = map + ("b" -> 2)
-  println(map.toString)
-}
-
 object SensorAgent {
   def props = Props(classOf[SensorAgent])
 

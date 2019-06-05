@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Identify, Props, 
 import akka.cluster.ClusterEvent.{CurrentClusterState, MemberDowned, MemberUp}
 import akka.cluster.{Cluster, Member, MemberStatus}
 import com.typesafe.config.ConfigFactory
-import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor.{DashboardIdentity, GuardianIdentity, IdentifyGuardian, NewGuardianData, SensorValue, Step, Vote}
+import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor._
 import it.unibo.pcd1819.mapmonitoring.guardian.consensus.ConsensusData
 import it.unibo.pcd1819.mapmonitoring.model.Environment._
 import it.unibo.pcd1819.mapmonitoring.model.NetworkConstants._
@@ -17,14 +17,17 @@ import scala.concurrent.duration._
 object GuardianActor{
   def props(patchName: String) = Props(new GuardianActor(patchName))
 
-  private[this] final case object Tick
 
   sealed trait GuardianInput
   final case object EndAlert extends GuardianInput
   final case class IdentifyGuardian(s: String) extends GuardianInput
-  final case class GuardianIdentity(patch: String)
+  final case class GuardianIdentity(patch: String) extends GuardianInput
   final case object DashboardIdentity extends GuardianInput
-  final case class SensorValue(v: Double) extends GuardianInput
+  final case class SensorValue(id: String, v: Double) extends GuardianInput
+  private final case object CalculateAverage extends GuardianInput
+  private final case object PreAlertTick extends GuardianInput
+  private final case object AverageTimer extends GuardianInput
+  private final case object Tick extends GuardianInput
 
   // TODO update serialization-bindings in cluster.conf
   private sealed trait ConsensusMessage
@@ -51,15 +54,22 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
   private val cluster = Cluster(context.system)
   private val guardianId = cluster.selfMember.address.toString
   private val actualPatch = toPatch(patchName).get
+  private val averagePeriod = 200.milliseconds
+  private val tickPeriod = 200.milliseconds
 
   private var consensusParticipants: Seq[ActorRef] = Seq()
   private var dashboardLookUpTable: Seq[ActorRef] = Seq()
+  private var sensorValue: Map[String, Double] = Map()
 
   private var consensusData: ConsensusData = ConsensusData()
+  private var patchAverageState: Double = 0.0
+  private var currentPreAlertDuration: FiniteDuration = 0.milliseconds
 
   override def preStart(): Unit = {
     super.preStart()
     cluster.subscribe(self, classOf[MemberUp], classOf[MemberDowned])
+    timers startPeriodicTimer(AverageTimer, CalculateAverage, averagePeriod)
+    timers startPeriodicTimer(PreAlertTick, Tick, tickPeriod)
   }
 
   private def clusterBehaviour: Receive = {
@@ -72,8 +82,28 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
     case IdentifyGuardian("dashboard") => sender() ! DashboardActor.GuardianExistence(cluster.selfMember, guardianId, toPatch(patchName).get)
   }
 
-  private def sensorListening: Receive = {
-    case SensorValue(value) => log info s"Guardian received $value"
+  private def manageElapsingTime(): Unit = {
+    if (patchAverageState > dangerThreshold) {
+      currentPreAlertDuration += tickPeriod
+    }
+    else {
+      dashboardLookUpTable.foreach(ref => ref ! DashboardActor.PreAlertEnd(guardianId))
+      currentPreAlertDuration = 0.milliseconds
+    }
+
+    if (currentPreAlertDuration > dangerDurationThreshold) {
+      dashboardLookUpTable.foreach(ref => ref ! DashboardActor.PreAlert(guardianId))
+      self ! Vote
+    }
+
+  }
+
+  private def sensorAnalysis: Receive = {
+    case SensorValue(id, value) => manageNewSensorData(id, value)
+    case CalculateAverage => calculateAverage()
+    case Vote => context become consensusBroadcast
+    case Tick => manageElapsingTime()
+    case _ =>
   }
 
   override def receive: Receive = clusterBehaviour orElse  {
@@ -83,7 +113,7 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
     case _ =>
   }
 
-  private def listening: Receive = clusterBehaviour orElse sensorListening orElse {
+  private def listening: Receive = clusterBehaviour orElse sensorAnalysis orElse {
     case _ =>
   }
 
@@ -168,7 +198,17 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
     case _ =>
   }
 
+  private def calculateAverage(): Unit = {
+    val values = sensorValue.values
+    patchAverageState = values.foldLeft(0.0)((aggregator, value) => aggregator + value)/values.size
+    sensorValue = sensorValue.empty
+  }
+
   private def manageDeadMember(member: Member): Unit = {
     log info "HEY WE NEED TO FIX THIS PROBLEM AMIRITE"
+  }
+
+  private def manageNewSensorData(id: String, value: Double): Unit = {
+    sensorValue = sensorValue + (id -> value)
   }
 }
