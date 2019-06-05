@@ -2,6 +2,7 @@ package it.unibo.pcd1819.mapmonitoring.view.screens
 
 import com.jfoenix.controls._
 import it.unibo.pcd1819.mapmonitoring.model.Environment
+import it.unibo.pcd1819.mapmonitoring.model.Environment.Patch
 import it.unibo.pcd1819.mapmonitoring.view.utilities._
 import it.unibo.pcd1819.mapmonitoring.view.utilities.JavafxEnums.ShapeType
 import javafx.fxml.FXML
@@ -14,8 +15,8 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 trait View {
-  def startSimulation(): Unit
-  def stopSimulation(): Unit
+  def endAlert(patch: Patch): Unit
+  def log(message: String): Unit
 }
 
 protected abstract class AbstractMainScreenView() extends View {
@@ -67,8 +68,6 @@ protected abstract class AbstractMainScreenView() extends View {
   private def prepareButtons(): Unit = {
     this.buttonStartPause.setGraphic(this.startIcon)
     this.buttonStartPause setOnAction (_ => {
-      this.addGuardian("A", "bombo")
-      this.setGuardianBlinking("bombo", blinking = true)
       this.buttonStartPause.getGraphic match {
         case this.pauseIcon => this.buttonStartPause setGraphic this.startIcon
         case this.startIcon => this.buttonStartPause setGraphic this.pauseIcon
@@ -83,7 +82,10 @@ protected abstract class AbstractMainScreenView() extends View {
   def preparePatches(): Unit = {
     this._patchesControls = PatchControlFactory.makeControlsBox(this.canvasPane, e => {
       val led = e.getSource.asInstanceOf[LedPatch]
-      led.setOn(!led.isOn)
+      if (!led.isOn) {
+        led.setOn(false);
+        this.endAlert(Environment.toPatch(led.name).get)
+      }
     })
   }
 
@@ -96,6 +98,7 @@ protected abstract class AbstractMainScreenView() extends View {
       }
     })
   }
+
 
   def patchesControls: mutable.Map[String, (LedPatch, HBox)] = this._patchesControls
   def addGuardian(patchName: String, guardianName: String): Unit = {
@@ -116,9 +119,8 @@ protected abstract class AbstractMainScreenView() extends View {
     .map(k => k.asInstanceOf[LedGuardian])
     .exists(g => g.name == guardianName)
 
-  def log(message: String): Unit
-  def startSimulation(): Unit
-  def stopSimulation(): Unit
+  override def endAlert(patch: Patch): Unit
+  override def log(message: String): Unit
 }
 
 object Constants {

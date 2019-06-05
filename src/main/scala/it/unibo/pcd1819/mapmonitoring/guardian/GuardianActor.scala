@@ -1,8 +1,8 @@
 package it.unibo.pcd1819.mapmonitoring.guardian
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Identify, Props, ReceiveTimeout, Stash, Timers}
-import akka.cluster.ClusterEvent.{CurrentClusterState, MemberDowned, MemberUp}
 import akka.cluster.{Cluster, Member, MemberStatus}
+import akka.cluster.ClusterEvent.{CurrentClusterState, MemberDowned, MemberUp}
 import com.typesafe.config.ConfigFactory
 import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor._
 import it.unibo.pcd1819.mapmonitoring.guardian.consensus.ConsensusData
@@ -14,7 +14,7 @@ import it.unibo.pcd1819.mapmonitoring.view.DashboardActor
 import scala.collection.immutable.SortedSet
 import scala.concurrent.duration._
 
-object GuardianActor{
+object GuardianActor {
   def props(patchName: String) = Props(new GuardianActor(patchName))
 
 
@@ -38,8 +38,8 @@ object GuardianActor{
   private val maxFaultyActors = 3
 
   def main(args: Array[String]): Unit = {
-    val port = if(args.isEmpty) "0" else args(0)
-    val patch = if(args.isEmpty || args.length == 1) randomPatch else args(1)
+    val port = if (args.isEmpty) "0" else args(0)
+    val patch = if (args.isEmpty || args.length == 1) randomPatch else args(1)
     val config =
       ConfigFactory.parseString(s"""akka.remote.netty.tcp.port=$port""")
         .withFallback(ConfigFactory.load("guardian"))
@@ -106,7 +106,7 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
     case _ =>
   }
 
-  override def receive: Receive = clusterBehaviour orElse  {
+  override def receive: Receive = clusterBehaviour orElse {
     case CurrentClusterState(members, _, _, _, _) =>
       manageStartUpMembers(members)
       context become listening
@@ -114,6 +114,7 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
   }
 
   private def listening: Receive = clusterBehaviour orElse sensorAnalysis orElse {
+    case EndAlert => log info "END ALERT IN: " + this.actualPatch
     case _ =>
   }
 
@@ -138,7 +139,7 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
     case Vote => // throw away
     case _ => {
       log debug "Unexpected message in consensusBroadcast behaviour"
-//      stash() TODO ???
+      //      stash() TODO ???
     }
   }
 

@@ -42,6 +42,7 @@ class SensorAgent extends Actor with ActorLogging with Timers{
 
   private val decisionMaker = Random
   private val nature = pickNature
+  private val sensorId = cluster.selfMember.address.toString
 
   private var guardianLookUpTable: Map[String, Seq[ActorRef]] = Map()
   private var dashboardLookUpTable: Seq[ActorRef] = Seq()
@@ -81,7 +82,7 @@ class SensorAgent extends Actor with ActorLogging with Timers{
       if (currentPatch.nonEmpty){
         if(guardianLookUpTable.contains(currentPatch.get.name)) {
           guardianLookUpTable(currentPatch.get.name).foreach(ref => {
-            ref ! GuardianActor.SensorValue(value)
+            ref ! GuardianActor.SensorValue(sensorId, value)
             log debug s"SENDING $value to $ref"
           })
         }
@@ -126,7 +127,7 @@ class SensorAgent extends Actor with ActorLogging with Timers{
       move(value.toInt)
       log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
       dashboardLookUpTable.foreach(
-        ref => ref ! DashboardActor.SensorPosition(cluster.selfMember.address.toString, Coordinate(x, y)))
+        ref => ref ! DashboardActor.SensorPosition(sensorId, Coordinate(x, y)))
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       log debug "moving to talk"
       context become talk
@@ -139,7 +140,7 @@ class SensorAgent extends Actor with ActorLogging with Timers{
       move(value.toInt)
       log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
       dashboardLookUpTable.foreach(
-        ref => ref ! DashboardActor.SensorPosition(cluster.selfMember.address.toString, Coordinate(x, y)))
+        ref => ref ! DashboardActor.SensorPosition(sensorId, Coordinate(x, y)))
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       log debug "silentMoving to silent"
       context become silent
