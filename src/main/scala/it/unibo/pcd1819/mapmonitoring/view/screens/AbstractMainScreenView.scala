@@ -111,7 +111,7 @@ protected abstract class AbstractMainScreenView() extends View {
 
   //GETTER
   protected def context: GraphicsContext = _context
-  protected def patchesControls: mutable.Map[String, (LedPatch, HBox)] = this.patchesControls
+  protected def patchesControls: mutable.Map[String, (LedPatch, HBox)] = this._patchesControls
   protected def sensorPositions: mutable.Map[String, Coordinate] = _sensorPositions
   //TO ACTOR
   override def endAlert(patch: Patch): Unit
@@ -123,4 +123,5 @@ object Constants {
   val MAX_SHAPE_POLYGON = 100
   val MIN_SHAPE_POLYGON = 1
   val ENVIRONMENT_DEPTH = 1000
+  var SENSOR_RADIUS = 10
 }
