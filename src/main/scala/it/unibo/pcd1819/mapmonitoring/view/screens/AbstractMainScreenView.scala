@@ -2,13 +2,14 @@ package it.unibo.pcd1819.mapmonitoring.view.screens
 
 import com.jfoenix.controls._
 import it.unibo.pcd1819.mapmonitoring.model.Environment
-import it.unibo.pcd1819.mapmonitoring.model.Environment.Patch
+import it.unibo.pcd1819.mapmonitoring.model.Environment.{Coordinate, Patch}
 import it.unibo.pcd1819.mapmonitoring.view.utilities._
 import it.unibo.pcd1819.mapmonitoring.view.utilities.JavafxEnums.ShapeType
 import javafx.fxml.FXML
-import javafx.scene.canvas.Canvas
+import javafx.scene.canvas.{Canvas, GraphicsContext}
 import javafx.scene.input.MouseButton
 import javafx.scene.layout.{AnchorPane, BorderPane, HBox}
+import javafx.scene.paint.Color
 import org.kordamp.ikonli.material.Material
 
 import scala.collection.JavaConverters._
@@ -22,7 +23,9 @@ trait View {
 protected abstract class AbstractMainScreenView() extends View {
   private val startIcon = ViewUtilities iconSetter(Material.PLAY_ARROW, JavafxEnums.BIG_ICON)
   private val pauseIcon = ViewUtilities iconSetter(Material.PAUSE, JavafxEnums.BIG_ICON)
+  private val _sensorPositions: mutable.Map[String, Coordinate] = mutable.HashMap()
   private var _patchesControls: mutable.Map[String, (LedPatch, HBox)] = _
+  private var _context: GraphicsContext = _
 
   @FXML protected var mainBorder: BorderPane = _
   @FXML protected var toolbar: JFXToolbar = _
@@ -63,6 +66,8 @@ protected abstract class AbstractMainScreenView() extends View {
     this.canvas.setWidth(Environment.width)
     this.canvas.setHeight(Environment.height)
     PatchControlFactory.makeSeparator(this.canvasPane)
+    this._context = canvas.getGraphicsContext2D
+    this._context.setFill(Color.SLATEGREY)
   }
 
   private def prepareButtons(): Unit = {
@@ -83,7 +88,7 @@ protected abstract class AbstractMainScreenView() extends View {
     this._patchesControls = PatchControlFactory.makeControlsBox(this.canvasPane, e => {
       val led = e.getSource.asInstanceOf[LedPatch]
       if (!led.isOn) {
-        led.setOn(false);
+        led.setOn(false)
         this.endAlert(Environment.toPatch(led.name).get)
       }
     })
@@ -99,26 +104,16 @@ protected abstract class AbstractMainScreenView() extends View {
     })
   }
 
-
-  def patchesControls: mutable.Map[String, (LedPatch, HBox)] = this._patchesControls
-  def addGuardian(patchName: String, guardianName: String): Unit = {
-    if (!guardianExists(guardianName)) this._patchesControls(patchName)._2.getChildren.add(LedGuardian(guardianName))
-  }
-  def setPatchBlinking(patchName: String, blinking: Boolean): Unit = this._patchesControls(patchName)._1.setBlinking(blinking)
-  def setGuardianBlinking(guardianName: String, blinking: Boolean): Unit = {
-    val guardian = this._patchesControls.values
-      .flatMap(p => p._2.getChildren.asScala)
-      .map(k => k.asInstanceOf[LedGuardian])
-      .find(g => g.name == guardianName)
-    if (guardian.isDefined) guardian.get.setBlinking(blinking) else
-      ViewUtilities.showNotificationPopup("Error", "Guardian not exists", JavafxEnums.MEDIUM_DURATION, JavafxEnums.ERROR_NOTIFICATION, null)
-  }
-
-  private def guardianExists(guardianName: String): Boolean = this._patchesControls.values
+  protected def guardianExists(guardianName: String): Boolean = this._patchesControls.values
     .flatMap(p => p._2.getChildren.asScala)
     .map(k => k.asInstanceOf[LedGuardian])
     .exists(g => g.name == guardianName)
 
+  //GETTER
+  protected def context: GraphicsContext = _context
+  protected def patchesControls: mutable.Map[String, (LedPatch, HBox)] = this.patchesControls
+  protected def sensorPositions: mutable.Map[String, Coordinate] = _sensorPositions
+  //TO ACTOR
   override def endAlert(patch: Patch): Unit
   override def log(message: String): Unit
 }
