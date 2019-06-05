@@ -100,7 +100,6 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
           this.consensusData = this.consensusData.markAsSent(notSent)
           unstashAll()
           timers startSingleTimer(ConsensusTickKey, GuardianReceiveTimeout, 3.seconds)
-//          context setReceiveTimeout 3.seconds
           context become consensusReceive
         case _ =>
           val isAlert = this.consensusData.decide(this.consensusParticipants.size)
@@ -113,10 +112,6 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
       }
     case NewGuardianData(_) => stash()
     case Vote => // throw away
-    case _ => {
-      log debug "Unexpected message in consensusBroadcast behaviour"
-//      stash() TODO ???
-    }
   }
 
   private def consensusReceive: Receive = {
@@ -139,9 +134,6 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
       case GuardianReceiveTimeout =>
         receiveToBroadcast()
       case Vote => // throw away
-      case _ =>
-        log debug "Unexpected message in consensusReceive behaviour"
-        ??? // TODO stash() ?
     }
   }
 
