@@ -46,8 +46,9 @@ final class MainScreenView extends AbstractMainScreenView() with ActorObserver {
 
   // ##################### FROM VIEW ACTOR
   override def setViewActorRef(actorRef: ActorRef): Unit = this.viewActorRef = actorRef
-  override def guardianExistence(guardianId: String, patch: Patch): Unit = if (!guardianExists(guardianId))
-    this.patchesControls(patch.name)._2.getChildren.add(LedGuardian(guardianId))
+  override def guardianExistence(guardianId: String, patch: Patch): Unit = Platform.runLater(() => {
+    if (!guardianExists(guardianId)) this.patchesControls(patch.name)._2.getChildren.add(LedGuardian(guardianId))
+  })
   override def preAlert(guardianId: String): Unit = setGuardianBlinking(guardianId, blinking = true)
   override def preAlertEnd(guardianId: String): Unit = setGuardianBlinking(guardianId, blinking = false)
   override def alert(patch: Patch): Unit = setPatchBlinking(patch.name, blinking = true)
@@ -72,7 +73,12 @@ final class MainScreenView extends AbstractMainScreenView() with ActorObserver {
 
   private def printSensorPositions(): Unit = Platform.runLater(() => {
     this.context.clearRect(0, 0, canvasPane.getWidth, canvasPane.getHeight)
-    this.sensorPositions.values.foreach(c => context.fillOval(c.x - 5, c.y - 5, 10, 10))
+    this.sensorPositions.values
+      .filter(p => p.x < canvasPane.getWidth - Constants.SENSOR_RADIUS / 2 && p.x > Constants.SENSOR_RADIUS / 2
+        && p.y < canvasPane.getHeight - Constants.SENSOR_RADIUS / 2 && p.y > Constants.SENSOR_RADIUS / 2)
+      .foreach(c => context.fillOval(c.x - Constants.SENSOR_RADIUS / 2, c.y - Constants.SENSOR_RADIUS / 2,
+        Constants.SENSOR_RADIUS, Constants.SENSOR_RADIUS)
+      )
   })
 }
 

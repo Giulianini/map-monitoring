@@ -11,9 +11,8 @@ import it.unibo.pcd1819.mapmonitoring.sensor.SensorAgent._
 import it.unibo.pcd1819.mapmonitoring.view.DashboardActor
 
 import scala.collection.immutable.SortedSet
-import scala.concurrent.duration._
+import scala.concurrent.duration.{FiniteDuration, _}
 import scala.util.Random
-import scala.concurrent.duration.FiniteDuration
 
 object SensorAgent {
   def props = Props(classOf[SensorAgent])
@@ -27,7 +26,7 @@ object SensorAgent {
   private final case class Responsiveness(updateSpeed: FiniteDuration)
 
   def main(args: Array[String]): Unit = {
-    val port = if(args.isEmpty) "0" else args(0)
+    val port = if (args.isEmpty) "0" else args(0)
     val config =
       ConfigFactory.parseString(s"""akka.remote.netty.tcp.port=$port""")
         .withFallback(ConfigFactory.load("sensor"))
@@ -37,7 +36,7 @@ object SensorAgent {
   }
 }
 
-class SensorAgent extends Actor with ActorLogging with Timers{
+class SensorAgent extends Actor with ActorLogging with Timers {
   private val cluster = Cluster(context.system)
 
   private val decisionMaker = Random
@@ -59,7 +58,6 @@ class SensorAgent extends Actor with ActorLogging with Timers{
   }
 
 
-
   override def receive: Receive = clusterBehaviour orElse {
     case CurrentClusterState(members, _, _, _, _) =>
       manageStartUpMembers(members)
@@ -79,8 +77,8 @@ class SensorAgent extends Actor with ActorLogging with Timers{
     case Tick =>
       val value = pickDecision
       val currentPatch = toPatch(Coordinate(x, y))
-      if (currentPatch.nonEmpty){
-        if(guardianLookUpTable.contains(currentPatch.get.name)) {
+      if (currentPatch.nonEmpty) {
+        if (guardianLookUpTable.contains(currentPatch.get.name)) {
           guardianLookUpTable(currentPatch.get.name).foreach(ref => {
             ref ! GuardianActor.SensorValue(sensorId, value)
             log debug s"SENDING $value to $ref"
@@ -93,7 +91,7 @@ class SensorAgent extends Actor with ActorLogging with Timers{
           log debug "talk to silentMoving"
           silentMoving
         } else {
-          if(currentPatch.isEmpty) {
+          if (currentPatch.isEmpty) {
             log debug "talk to silentWandering"
             silentWandering
           } else {
@@ -110,7 +108,7 @@ class SensorAgent extends Actor with ActorLogging with Timers{
       val value = pickDecision
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       context become {
-        if (becomeTalkative(value.toInt)){
+        if (becomeTalkative(value.toInt)) {
           log debug "silent to talk"
           talk
         } else {
@@ -153,7 +151,7 @@ class SensorAgent extends Actor with ActorLogging with Timers{
       move(value.toInt)
       val outside = toPatch(Coordinate(x, y)).isEmpty
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
-      if(!outside) {
+      if (!outside) {
         context become {
           if (remainSilent(value.toInt)) {
             log debug "silentWandering to silentMoving"
@@ -173,7 +171,7 @@ class SensorAgent extends Actor with ActorLogging with Timers{
   }
 
   private def pickDecision: Double = {
-    decisionMaker.nextDouble() * decisionMaker.nextInt(100)
+    decisionMaker.nextDouble() * 100
   }
 
   private def remainSilent(v: Int): Boolean = {
@@ -185,24 +183,23 @@ class SensorAgent extends Actor with ActorLogging with Timers{
   }
 
   private def chooseNextHorizontalMovement(value: Int): Double = value match {
-    case v if v > 0 && v < 25 => -0.5
-    case v if v > 25 && v < 50 => -1.0
-    case v if v > 50 && v < 75 => 1.0
-    case v if v > 75 && v < 100 => 0.5
+    case v if v > 0 && v < 25 => 2
+    case v if v > 25 && v < 50 => 2
+    case v if v > 50 && v < 75 => -2
+    case v if v > 75 && v < 100 => -2
     case _ => 0
   }
 
   private def chooseNextVerticalMovement(value: Int): Double = value match {
-    case v if v > 0 && v < 25 => 0.5
-    case v if v > 25 && v < 50 => 1.0
-    case v if v > 50 && v < 75 => -1.0
-    case v if v > 75 && v < 100 => -0.5
+    case v if v > 0 && v < 25 => 2
+    case v if v > 25 && v < 50 => 2
+    case v if v > 50 && v < 75 => -2
+    case v if v > 75 && v < 100 => -2
     case _ => 0
   }
 
   private def pickNature: Responsiveness = {
-    val chosen = decisionMaker.nextDouble()
-    Responsiveness(((chosen + 0.5) * (decisionMaker.nextInt(1000) + 500)).milliseconds)
+    Responsiveness(decisionMaker.nextInt(500).milliseconds)
   }
 
   private def manageNewMember(member: Member): Unit = member match {

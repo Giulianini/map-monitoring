@@ -35,7 +35,7 @@ object PatchControlFactory {
       anchorPane.getChildren.add(patchHboxControl)
       AnchorPane.setTopAnchor(patchHboxControl, patch.box.northwest.y)
       AnchorPane.setLeftAnchor(patchHboxControl, patch.box.northwest.x)
-      indexToHbox += (patch.name) -> (patchLed, guardianLedBox)
+      indexToHbox += patch.name -> (patchLed, guardianLedBox)
     })
     indexToHbox
   }

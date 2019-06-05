@@ -54,6 +54,7 @@ class DashboardActor extends Actor with ActorLogging with Timers {
 
   private def manageNewGuardian(state: DashboardActorState, member: Member, id: String, patch: Patch): Unit = {
     context.become(onMessage(state.copy(state.guardians + ((sender(), member, id) -> patch))))
+    view.guardianExistence(id, patch)
   }
 
   private def manageDeadMember(state: DashboardActorState, m: Member): Unit = {
