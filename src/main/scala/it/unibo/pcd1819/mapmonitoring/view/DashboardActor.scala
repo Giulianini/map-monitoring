@@ -33,27 +33,13 @@ class DashboardActor extends Actor with ActorLogging with Timers {
     case MemberUp(m) => manageNewMember(m)
     case MemberDowned(m) => manageDeadMember(state, m)
     case GuardianExistence(member, id, patch) => manageNewGuardian(state, member, id, patch)
-    case SensorPosition(id, c) =>
-      log info s"view received $id, $c"
-    //TODO: update sensor position along with the provided coordinates.
-    // Sensors will only send information if they are inside the map.
-    case PreAlert(guardianId) =>
-      log debug s"view received $guardianId is in prealert"
-    //TODO: update the specified guardian state to be in pre-alert (yellow)
-    case PreAlertEnd(guardian) =>
-      log debug s"view received $guardian is no more in prealert"
-    //TODO: update the specified guardian state to be normal (green)
-    case Alert(patch) =>
-      log debug s"view received ${patch.name} is in ALERT"
-    // TODO: the specified Patch is in alert, every guardian of such a patch
-
+    case SensorPosition(id, c) => view.sensorPosition(id, c)
+    case PreAlert(guardianId) => view.preAlert(guardianId)
+    case PreAlertEnd(guardian) => view.preAlertEnd(guardian)
+    case Alert(patch) => view.alert(patch)
     //FROM GUI
-    case EndAlert(patch: Patch) => log info s"Ended alarm in patch: ${patch.name}"; endAlertAllGuardian(state: DashboardActorState, patch: Patch)
-    // is in alert (red) and the whole patch needs to display the state of alert in some way.
-    // An action from the Dashboard is needed to restore the normal state of the patch guardians,
-    // which will all stop monitoring until such a message is received. There might be the need for some sort
-    // of acknowledgement towards the Dashboard from all the patch Guardians to confirm that
-    // the normal execution of the system has been restored
+    case Log(message) => log info message
+    case EndAlert(patch) => log info s"Ended alarm in patch: ${patch.name}"; endAlertAllGuardian(state: DashboardActorState, patch: Patch)
   }
 
   private def manageStartUpMembers(members: SortedSet[Member]): Unit = {
