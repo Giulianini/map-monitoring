@@ -62,9 +62,9 @@ object Launcher extends App {
   SensorAgent.main(Seq.empty.toArray)
   SensorAgent.main(Seq.empty.toArray)
   SensorAgent.main(Seq.empty.toArray)*/
-  SensorAgent.main(Seq.empty.toArray)
-  SensorAgent.main(Seq.empty.toArray)
-  SensorAgent.main(Seq.empty.toArray)
+//  SensorAgent.main(Seq.empty.toArray)
+//  SensorAgent.main(Seq.empty.toArray)
+//  SensorAgent.main(Seq.empty.toArray)
   SensorAgent.main(Seq.empty.toArray)
   SensorAgent.main(Seq.empty.toArray)
   SensorAgent.main(Seq.empty.toArray)

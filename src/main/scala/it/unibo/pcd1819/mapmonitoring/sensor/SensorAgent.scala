@@ -76,6 +76,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
   private def talk: Receive = clusterBehaviour orElse {
     case Tick =>
       val value = pickDecision
+//      log info s"$value"
       val currentPatch = toPatch(Coordinate(x, y))
       if (currentPatch.nonEmpty) {
         if (guardianLookUpTable.contains(currentPatch.get.name)) {
@@ -123,6 +124,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
     case Tick =>
       val value = pickDecision
       move(value.toInt)
+      log info s"$x $y"
       log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
       dashboardLookUpTable.foreach(
         ref => ref ! DashboardActor.SensorPosition(sensorId, Coordinate(x, y)))
@@ -136,6 +138,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
     case Tick =>
       val value = pickDecision
       move(value.toInt)
+      log info s"$x $y"
       log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
       dashboardLookUpTable.foreach(
         ref => ref ! DashboardActor.SensorPosition(sensorId, Coordinate(x, y)))
@@ -183,18 +186,18 @@ class SensorAgent extends Actor with ActorLogging with Timers {
   }
 
   private def chooseNextHorizontalMovement(value: Int): Double = value match {
-    case v if v > 0 && v < 25 => 2
-    case v if v > 25 && v < 50 => 2
-    case v if v > 50 && v < 75 => -2
-    case v if v > 75 && v < 100 => -2
+    case v if v > 0 && v < 25 => decisionMaker.nextInt(7) - 3
+    case v if v > 25 && v < 50 => decisionMaker.nextInt(7) - 3
+    case v if v > 50 && v < 75 => decisionMaker.nextInt(7) - 3
+    case v if v > 75 && v < 100 => decisionMaker.nextInt(7) - 3
     case _ => 0
   }
 
   private def chooseNextVerticalMovement(value: Int): Double = value match {
-    case v if v > 0 && v < 25 => 2
-    case v if v > 25 && v < 50 => 2
-    case v if v > 50 && v < 75 => -2
-    case v if v > 75 && v < 100 => -2
+    case v if v > 0 && v < 25 => decisionMaker.nextInt(7) - 3
+    case v if v > 25 && v < 50 => decisionMaker.nextInt(7) - 3
+    case v if v > 50 && v < 75 => decisionMaker.nextInt(7) - 3
+    case v if v > 75 && v < 100 => decisionMaker.nextInt(7) - 3
     case _ => 0
   }
 
