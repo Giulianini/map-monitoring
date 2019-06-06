@@ -57,22 +57,21 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
   private val cluster = Cluster(context.system)
   private val guardianId = cluster.selfMember.address.toString
   private val actualPatch = toPatch(patchName).get
-  private val averagePeriod = 200.milliseconds
-  private val tickPeriod = 200.milliseconds
+  private val averagePeriod = 100.milliseconds
+  private val tickPeriod = 500.milliseconds
 
   private var consensusParticipants: Seq[ActorRef] = Seq()
   private var dashboardLookUpTable: Seq[ActorRef] = Seq()
   private var sensorValue: Map[String, Double] = Map()
 
-  private var consensusData: ConsensusData = ConsensusData()
+  private var shouldAlert = false
+  private var consensusData: ConsensusData = ConsensusData(false)
   private var patchAverageState: Double = 0.0
   private var currentPreAlertDuration: FiniteDuration = 0.milliseconds
 
   override def preStart(): Unit = {
     super.preStart()
     cluster.subscribe(self, classOf[MemberUp], classOf[MemberDowned])
-    timers startPeriodicTimer(AverageTimer, CalculateAverage, averagePeriod)
-    timers startPeriodicTimer(PreAlertTick, Tick, tickPeriod)
   }
 
   private def clusterBehaviour: Receive = {
@@ -85,43 +84,58 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
     case IdentifyGuardian("dashboard") => sender() ! DashboardActor.GuardianExistence(cluster.selfMember, guardianId, toPatch(patchName).get)
   }
 
+  private def clusterStash: Receive = {
+    case MemberUp(_) => stash()
+    case MemberDowned(_) => stash()
+    case GuardianIdentity(_) => stash()
+    case DashboardIdentity => stash()
+    case IdentifyGuardian("sensor") => stash()
+    case IdentifyGuardian("guardian") => stash()
+    case IdentifyGuardian("dashboard") => stash()
+  }
+
   private def manageElapsingTime(): Unit = {
     if (patchAverageState > dangerThreshold) {
+      dashboardLookUpTable.foreach(ref => ref ! DashboardActor.PreAlert(guardianId))
       currentPreAlertDuration += tickPeriod
     }
     else {
+      this.shouldAlert = false
       dashboardLookUpTable.foreach(ref => ref ! DashboardActor.PreAlertEnd(guardianId))
       currentPreAlertDuration = 0.milliseconds
     }
 
     if (currentPreAlertDuration > dangerDurationThreshold) {
+      this.shouldAlert = true
       dashboardLookUpTable.foreach(ref => ref ! DashboardActor.PreAlert(guardianId))
-      self ! Vote
+      consensusParticipants.foreach(_ ! Vote)
     }
-
   }
 
   private def sensorAnalysis: Receive = {
     case SensorValue(id, value) => manageNewSensorData(id, value)
     case CalculateAverage => calculateAverage()
-    case Vote => context become consensusBroadcast
+    case Vote =>
+      this.consensusData = ConsensusData(this.shouldAlert)
+      context become consensusBroadcast
+      self ! Step
     case Tick => manageElapsingTime()
-    case _ =>
   }
 
   override def receive: Receive = clusterBehaviour orElse {
     case CurrentClusterState(members, _, _, _, _) =>
       manageStartUpMembers(members)
       context become listening
+      timers startPeriodicTimer(AverageTimer, CalculateAverage, averagePeriod)
+      timers startPeriodicTimer(PreAlertTick, Tick, tickPeriod)
     case _ =>
   }
 
   private def listening: Receive = clusterBehaviour orElse sensorAnalysis orElse {
-    case EndAlert => log info "END ALERT IN: " + this.actualPatch
     case _ =>
   }
 
-  private def consensusBroadcast: Receive = {
+  private def consensusBroadcast: Receive = clusterStash orElse {
     case Step =>
       this.consensusData match {
         case ConsensusData(_, _, step, _) if step < GuardianActor.maxFaultyActors =>
@@ -129,33 +143,39 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
           val notSent = this.consensusData.notSent
           this.consensusParticipants foreach (_ ! NewGuardianData(notSent))
           this.consensusData = this.consensusData.markAsSent(notSent)
-          unstashAll()
+//          unstashAll()
           timers startSingleTimer(ConsensusTickKey, GuardianReceiveTimeout, 3.seconds)
           context become consensusReceive
         case _ =>
           val isAlert = this.consensusData.decide(this.consensusParticipants.size)
-          this.dashboardLookUpTable foreach (_ ! DashboardActor.Alert(this.actualPatch)) // TODO send decision
-          this.consensusData = ConsensusData()
+//          log info "Values: " + this.consensusData.values.map(v => v.value)
+//          this.consensusData = ConsensusData()
           context become (if (isAlert) {
             log info "ALERT"
+            this.dashboardLookUpTable foreach (_ ! DashboardActor.Alert(this.actualPatch)) // TODO send decision
             alert
-          } else listening)
+          } else {
+            log info "CONSENSUS FAILED"
+            currentPreAlertDuration = 0.seconds
+            unstashAll()
+            listening
+          })
       }
     case NewGuardianData(_) => stash()
     case Vote => // throw away
   }
 
-  private def consensusReceive: Receive = {
+  private def consensusReceive: Receive = clusterStash orElse {
     def receiveToBroadcast(): Unit = {
       this.consensusData = this.consensusData.resetReceived()
       self ! Step
-      context setReceiveTimeout Duration.Undefined
       context become consensusBroadcast
     }
     {
-      case NewGuardianData(data) if sender().path != self.path => // TODO is this the appropriate guard?
+      case NewGuardianData(data) if sender().path.toString != cluster.selfMember.address.toString + "/user/guardian" => // TODO is this the appropriate guard?
         timers cancel ConsensusTickKey
         this.consensusData = this.consensusData.receive(data)
+//        log info "Data: " + data.toString()
         this.consensusData match {
           case ConsensusData(_, _, _, n) if n == this.consensusParticipants.size - 1 =>
             receiveToBroadcast()
@@ -168,30 +188,33 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
     }
   }
 
-  private def alert: Receive = {
+  private def alert: Receive = clusterStash orElse {
     case EndAlert =>
       log info "Exiting alert"
+      currentPreAlertDuration = 0.seconds
+      this.shouldAlert = false
+      unstashAll()
       context become listening
   }
 
   private def manageStartUpMembers(members: SortedSet[Member]): Unit = {
-    val filtered = members.filter(member => member.status == MemberStatus.Up)
+    val filtered = members
+      .filter(member => member != cluster.selfMember)
       .filter(member => member.hasRole("guardian") || member.hasRole("dashboard"))
-      .partition(member => member.hasRole("guardian") || member.hasRole("dashboard"))
+      .partition(member => member.hasRole("guardian"))
     val guardians = filtered._1
     val dashboards = filtered._2
-    guardians.foreach(g => context.system.actorSelection(s"${g.address}/user/**") ! Identify("guardian"))
-    dashboards.foreach(d => context.system.actorSelection(s"${d.address}/user/**") ! Identify("guardian"))
+    guardians.foreach(g => context.system.actorSelection(s"${g.address}/user/**") ! GuardianActor.IdentifyGuardian("guardian"))
+    dashboards.foreach(d => context.system.actorSelection(s"${d.address}/user/**") ! DashboardActor.IdentifyDashboard("guardian"))
   }
 
 
   private def definePartnership(patch: String): Unit = {
     if (this.patchName == patch) {
       consensusParticipants = consensusParticipants :+ sender()
-      log debug s"${consensusParticipants}"
+//      log info s"$consensusParticipants"
     }
   }
-
   private def defineDashboard(): Unit = {
     sender() ! DashboardActor.GuardianExistence(cluster.selfMember, guardianId, actualPatch)
     dashboardLookUpTable = dashboardLookUpTable :+ sender()

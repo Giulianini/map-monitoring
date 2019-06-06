@@ -87,8 +87,8 @@ protected abstract class AbstractMainScreenView() extends View {
   def preparePatches(): Unit = {
     this._patchesControls = PatchControlFactory.makeControlsBox(this.canvasPane, e => {
       val led = e.getSource.asInstanceOf[LedPatch]
-      if (led.isBlinking()) {
-        led.setBlinking(false)
+      if (led.isOn()) {
+        led.setOn(false)
         this.endAlert(Environment.toPatch(led.name).get)
       }
     })

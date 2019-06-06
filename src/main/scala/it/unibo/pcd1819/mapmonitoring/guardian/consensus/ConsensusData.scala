@@ -6,13 +6,15 @@ private[guardian] final case class ConsensusData private (var values: Seq[Guardi
                                                           var step: Int, var receivedAmount: Int) {
   def notSent: Seq[GuardianInfo] = this.values filter (gi => !this.sentIndices.contains(gi.index))
   def markAsSent(data: Seq[GuardianInfo]): ConsensusData = this.copy(sentIndices = sentIndices ++ (data map (_.index)))
-  def receive(info: Seq[GuardianInfo]): ConsensusData = this.copy(values = this.values ++ info,
-    receivedAmount = this.receivedAmount + 1)
+  def receive(info: Seq[GuardianInfo]): ConsensusData = this.copy(values = {
+//    val newInfo = info filter (i => this.values.contains(v => v.))
+    this.values ++ info
+  }, receivedAmount = this.receivedAmount + 1)
   def incStep(): ConsensusData = this.copy(step = this.step + 1)
   def resetReceived(): ConsensusData = this.copy(receivedAmount = 0)
-  def decide(actors: Int): Boolean = this.values.map(_.value).count(identity[Boolean]) > (actors.toDouble / 2d)
+  def decide(actors: Int): Boolean = this.values.map(_.value).count(v => v) > (actors.toDouble / 2d)
 }
 
 private[guardian] object ConsensusData {
-  def apply(): ConsensusData = new ConsensusData(Seq(), Seq(), 0, 0)
+  def apply(initialValue: Boolean): ConsensusData = new ConsensusData(Seq(GuardianInfo(0, initialValue)), Seq(), 0, 0)
 }

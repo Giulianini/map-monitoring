@@ -87,10 +87,10 @@ class SensorAgent extends Actor with ActorLogging with Timers {
       }
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       context become {
-        if (remainSilent(value.toInt)) {
-          log debug "talk to silentMoving"
-          silentMoving
-        } else {
+//        if (remainSilent(value.toInt)) {
+//          log debug "talk to silentMoving"
+//          silentMoving
+//        } else {
           if (currentPatch.isEmpty) {
             log debug "talk to silentWandering"
             silentWandering
@@ -98,7 +98,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
             log debug "talk to moving"
             moving
           }
-        }
+//        }
       }
     case _ => log error s"$x A sensor is not meant to be contacted"
   }
@@ -153,14 +153,14 @@ class SensorAgent extends Actor with ActorLogging with Timers {
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       if (!outside) {
         context become {
-          if (remainSilent(value.toInt)) {
-            log debug "silentWandering to silentMoving"
-            silentMoving
-          } else {
+//          if (remainSilent(value.toInt)) {
+//            log debug "silentWandering to silentMoving"
+//            silentMoving
+//          } else {
             log debug "silentWandering to moving"
             moving
           }
-        }
+//        }
       }
     case _ => log error "A sensor is not meant to be contacted"
   }

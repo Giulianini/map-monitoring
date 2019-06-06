@@ -59,7 +59,7 @@ final class MainScreenView extends AbstractMainScreenView() with ActorObserver {
 
   //############################# METHODS ##################################
   private def setPatchBlinking(patchName: String, blinking: Boolean): Unit = Platform.runLater(() => {
-    this.patchesControls(patchName)._1.setBlinking(blinking)
+    this.patchesControls(patchName)._1.setOn(blinking)
   })
 
   private def setGuardianBlinking(guardianName: String, blinking: Boolean): Unit = Platform.runLater(() => {
@@ -67,7 +67,7 @@ final class MainScreenView extends AbstractMainScreenView() with ActorObserver {
       .flatMap(p => p._2.getChildren.asScala)
       .map(k => k.asInstanceOf[LedGuardian])
       .find(g => g.name == guardianName)
-    if (guardian.isDefined) guardian.get.setBlinking(blinking) else
+    if (guardian.isDefined) guardian.get.setOn(blinking) else
       ViewUtilities.showNotificationPopup("Error", "Guardian not exists", JavafxEnums.MEDIUM_DURATION, JavafxEnums.ERROR_NOTIFICATION, null)
   })
 
