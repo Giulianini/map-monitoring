@@ -76,7 +76,6 @@ class SensorAgent extends Actor with ActorLogging with Timers {
   private def talk: Receive = clusterBehaviour orElse {
     case Tick =>
       val value = pickDecision
-//      log info s"$value"
       val currentPatch = toPatch(Coordinate(x, y))
       if (currentPatch.nonEmpty) {
         if (guardianLookUpTable.contains(currentPatch.get.name)) {
@@ -124,7 +123,6 @@ class SensorAgent extends Actor with ActorLogging with Timers {
     case Tick =>
       val value = pickDecision
       move(value.toInt)
-      log info s"$x $y"
       log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
       dashboardLookUpTable.foreach(
         ref => ref ! DashboardActor.SensorPosition(sensorId, Coordinate(x, y)))
@@ -138,7 +136,6 @@ class SensorAgent extends Actor with ActorLogging with Timers {
     case Tick =>
       val value = pickDecision
       move(value.toInt)
-      log info s"$x $y"
       log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
       dashboardLookUpTable.foreach(
         ref => ref ! DashboardActor.SensorPosition(sensorId, Coordinate(x, y)))
@@ -202,7 +199,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
   }
 
   private def pickNature: Responsiveness = {
-    Responsiveness(decisionMaker.nextInt(500).milliseconds)
+    Responsiveness((decisionMaker.nextInt(500) + 100).milliseconds)
   }
 
   private def manageNewMember(member: Member): Unit = member match {
