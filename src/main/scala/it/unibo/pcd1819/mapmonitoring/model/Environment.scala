@@ -16,8 +16,8 @@ object Environment {
   val width: Double = 600
   val height: Double = 400
 
-  val column: Int = 1
-  val row: Int = 1
+  val column: Int = 3
+  val row: Int = 2
   val patchNumber: Int = column * row
   val patchWidth: Double = width / column
   val patchHeigth: Double = height / row
