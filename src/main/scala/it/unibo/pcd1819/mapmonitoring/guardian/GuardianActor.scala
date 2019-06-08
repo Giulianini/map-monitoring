@@ -80,6 +80,8 @@ class GuardianActor(private val patchName: String, private val id: Int, private 
   private var consensusParticipants: Seq[ActorRef] = Seq()
   private var dashboardLookUpTable: Seq[ActorRef] = Seq()
   private var sensorValue: Map[String, Double] = Map()
+  private var memberAssociation: Map[Member, ActorRef] = Map()
+
 
   private var leader: ActorRef = _
 
@@ -107,7 +109,7 @@ class GuardianActor(private val patchName: String, private val id: Int, private 
     case MemberDowned(member) => manageDeadMember(member)
     case GuardianIdentity(patch) => definePartnership(patch)
     case DashboardIdentity => defineDashboard()
-    case IdentifyGuardian("sensor") => sender() ! SensorAgent.GuardianIdentity(patchName)
+    case IdentifyGuardian("sensor") => sender() ! SensorAgent.GuardianIdentity(cluster.selfMember, patchName)
     case IdentifyGuardian("guardian") => sender() ! GuardianActor.GuardianIdentity(patchName)
     case IdentifyGuardian("dashboard") => sender() ! DashboardActor.GuardianExistence(cluster.selfMember, guardianId, toPatch(patchName).get)
     case LeaderIdentity =>
@@ -125,7 +127,7 @@ class GuardianActor(private val patchName: String, private val id: Int, private 
     case PollAlert =>
       val vote = currentPreAlertDuration > dangerDurationThreshold
       if (this.leader == null) {
-        this.leader = sender();
+        this.leader = sender()
       }
       this.leader ! AlertState(vote)
     case Alert =>
@@ -244,7 +246,6 @@ class GuardianActor(private val patchName: String, private val id: Int, private 
         this.leader = self
         sender() ! LeaderIdentity
       }
-//      log info s"$consensusParticipants"
     }
   }
   private def defineDashboard(): Unit = {

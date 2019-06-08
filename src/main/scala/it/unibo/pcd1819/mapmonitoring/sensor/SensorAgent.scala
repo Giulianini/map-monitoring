@@ -18,7 +18,7 @@ object SensorAgent {
   def props = Props(classOf[SensorAgent])
 
   sealed trait SensorInput
-  final case class GuardianIdentity(patch: String) extends SensorInput
+  final case class GuardianIdentity(member: Member, patch: String) extends SensorInput
   final case object DashboardIdentity extends SensorInput
 
   private final case object TickKey
@@ -45,6 +45,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
 
   private var guardianLookUpTable: Map[String, Seq[ActorRef]] = Map()
   private var dashboardLookUpTable: Seq[ActorRef] = Seq()
+  private var memberAssociation: Map[Member, ActorRef] = Map()
 
   private var y: Double = _
   private var x: Double = _
@@ -69,7 +70,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
   private def clusterBehaviour: Receive = {
     case MemberUp(member) => manageNewMember(member)
     case MemberDowned(member) => manageDeadMember(member)
-    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
+    case GuardianIdentity(member, patch) => manageGuardianLookUpTable(member, patch)
     case DashboardIdentity => manageDashboardLookUpTable()
   }
 
@@ -220,18 +221,21 @@ class SensorAgent extends Actor with ActorLogging with Timers {
     dashboards.foreach(d => context.system.actorSelection(s"${d.address}/user/**") ! GuardianActor.IdentifyGuardian("sensor"))
   }
 
-  private def manageGuardianLookUpTable(patch: String): Unit = {
-    val updatedValues = if (guardianLookUpTable.contains(patch)) guardianLookUpTable(patch) :+ sender() else Seq(sender())
-    guardianLookUpTable = guardianLookUpTable + (patch -> updatedValues)
-    log debug s"$guardianLookUpTable"
+  private def manageGuardianLookUpTable(member: Member, patch: String): Unit = {
+    val updatedLookUpValues = if (guardianLookUpTable.contains(patch)) guardianLookUpTable(patch) :+ sender() else Seq(sender())
+    guardianLookUpTable = guardianLookUpTable + (patch -> updatedLookUpValues)
+    memberAssociation = memberAssociation + (member -> sender())
   }
 
   private def manageDashboardLookUpTable(): Unit = {
     dashboardLookUpTable = dashboardLookUpTable :+ sender()
-    log debug s"$dashboardLookUpTable"
   }
 
   private def manageDeadMember(member: Member): Unit = {
-    log info "HEY WE NEED TO FIX THIS PROBLEM AMIRITE"
+    val deletee = memberAssociation(member)
+    memberAssociation = memberAssociation - member
+
+    val updated = guardianLookUpTable.filter(p => p._2 contains deletee).toSeq.head
+    guardianLookUpTable = guardianLookUpTable + (updated._1 -> updated._2)
   }
 }
