@@ -118,7 +118,10 @@ class GuardianActor(private val patchName: String, private val id: Int, private 
       context become alertDecision(Seq(leaderVote))
     case PollAlert =>
       val vote = currentPreAlertDuration > dangerDurationThreshold
-      sender() ! AlertState(vote)
+      if (this.leader == null) {
+        this.leader = sender();
+      }
+      this.leader ! AlertState(vote)
     case Alert =>
       context become alert
     case NoAlert =>
@@ -187,7 +190,9 @@ class GuardianActor(private val patchName: String, private val id: Int, private 
     if (currentPreAlertDuration > dangerDurationThreshold && this.canPreAlert) {
       this.canPreAlert = false
       dashboardLookUpTable.foreach(ref => ref ! DashboardActor.PreAlert(guardianId))
-      this.leader ! PreAlert
+      if (this.leader != null){
+        this.leader ! PreAlert
+      }
     }
   }
 
