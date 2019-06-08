@@ -29,11 +29,15 @@ object GuardianActor {
   private final case object Tick extends GuardianInput
   private final case object PreAlert
 
+  // consensus
   private final case object PollAlert // from leader
   private final case class AlertState(state: Boolean) // to leader
   private final case object Alert
   private final case object NoAlert
   final case object EndAlert
+
+  // leader election
+  private final case class Vote(id: Int)
 
   private final case object LeaderIdentity
 
@@ -46,6 +50,8 @@ object GuardianActor {
 
   private final case object ConsensusTickKey
   private final case object ConsensusTimeout
+  private final case object ElectionTickKey
+  private final case object ElectionTimeout
 
   private val maxFaultyActors = 3
 
@@ -125,6 +131,28 @@ class GuardianActor(private val patchName: String, private val id: Int, private 
       this.canPreAlert = true
   }
 
+  private def voting(votes: Seq[Int]): Receive = clusterStash orElse {
+    case Vote(i) if i != this.id =>
+      timers cancel ElectionTickKey
+      timers startSingleTimer (ElectionTickKey, ElectionTimeout, 1.seconds)
+      context become voting(votes :+ i)
+    case ElectionTimeout =>
+      log info "Electing new leader..."
+      decideLeader(votes)
+    case LeaderIdentity =>
+      log info "Acking new leader."
+      this.leader = sender()
+      context become listening
+  }
+
+  private def decideLeader(votes: Seq[Int]): Unit = {
+    val winner = votes.min
+    if (winner == this.id) {
+      log info s"I won the election. [${this.id}]"
+      consensusParticipants foreach (_ ! LeaderIdentity)
+    }
+  }
+
   private def alertDecision(votes: Seq[Boolean]): Receive = clusterStash orElse {
     case AlertState(state) =>
       log info s"Received alert state $state"
@@ -132,7 +160,7 @@ class GuardianActor(private val patchName: String, private val id: Int, private 
       timers startSingleTimer (ConsensusTickKey, ConsensusTimeout, 2.seconds)
       context become alertDecision(votes :+ state)
     case ConsensusTimeout =>
-      val shouldAlert = this.decide(votes)
+      val shouldAlert = this.decideAlert(votes)
       if (shouldAlert) {
         log info "Sending Alert"
         dashboardLookUpTable foreach (_ ! DashboardActor.Alert(this.actualPatch))
@@ -154,7 +182,7 @@ class GuardianActor(private val patchName: String, private val id: Int, private 
       context become listening
   }
 
-  private def decide(votes: Seq[Boolean]): Boolean = votes.count(_ == true) > (votes.length.toDouble / 2d)
+  private def decideAlert(votes: Seq[Boolean]): Boolean = votes.count(_ == true) > (votes.length.toDouble / 2d)
 
   private def sensorAnalysis: Receive = {
     case SensorValue(id, value) => manageNewSensorData(id, value)
@@ -235,7 +263,8 @@ class GuardianActor(private val patchName: String, private val id: Int, private 
   }
 
   private def manageDeadMember(member: Member): Unit = {
-    log info "HEY WE NEED TO FIX THIS PROBLEM AMIRITE"
+    consensusParticipants foreach (_ ! Vote(this.id))
+    context become voting(Seq(this.id))
   }
 
   private def manageNewSensorData(id: String, value: Double): Unit = {
