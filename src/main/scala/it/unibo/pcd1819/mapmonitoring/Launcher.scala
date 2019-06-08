@@ -7,16 +7,16 @@ import it.unibo.pcd1819.mapmonitoring.view.DashboardActor
 
 object Launcher extends App {
   SensorAgent.main(Seq(firstSeedPort.toString).toArray)
-  GuardianActor.main(Seq(secondSeedPort.toString, "A").toArray)
+  GuardianActor.main(Seq("0", "0", secondSeedPort.toString, "A").toArray)
   DashboardActor.main(Seq(thirdSeedPort.toString).toArray)
 
-  GuardianActor.main(Seq("0", "A").toArray)
-  GuardianActor.main(Seq("0", "A").toArray)
-  GuardianActor.main(Seq("0", "A").toArray)
-  GuardianActor.main(Seq("0", "A").toArray)
-  GuardianActor.main(Seq("0", "A").toArray)
-  GuardianActor.main(Seq("0", "A").toArray)
-  GuardianActor.main(Seq("0", "A").toArray)
+  GuardianActor.main(Seq("1", "0", "0", "A").toArray)
+  GuardianActor.main(Seq("2", "0", "0", "A").toArray)
+  GuardianActor.main(Seq("3", "0", "0", "A").toArray)
+  GuardianActor.main(Seq("4", "0", "0", "A").toArray)
+  GuardianActor.main(Seq("5", "0", "0", "A").toArray)
+  GuardianActor.main(Seq("6", "0", "0", "A").toArray)
+  GuardianActor.main(Seq("7", "0", "0", "A").toArray)
 
   SensorAgent.main(Seq(5500.toString).toArray)
 //  SensorAgent.main(Seq.empty.toArray)

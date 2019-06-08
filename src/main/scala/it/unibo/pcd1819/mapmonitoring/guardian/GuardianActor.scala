@@ -15,11 +15,10 @@ import scala.collection.immutable.SortedSet
 import scala.concurrent.duration._
 
 object GuardianActor {
-  def props(patchName: String) = Props(new GuardianActor(patchName))
+  def props(patchName: String, id: Int, leaderId: Int) = Props(new GuardianActor(patchName, id, leaderId))
 
 
   sealed trait GuardianInput
-  final case object EndAlert extends GuardianInput
   final case class IdentifyGuardian(s: String) extends GuardianInput
   final case class GuardianIdentity(patch: String) extends GuardianInput
   final case object DashboardIdentity extends GuardianInput
@@ -28,31 +27,43 @@ object GuardianActor {
   private final case object PreAlertTick extends GuardianInput
   private final case object AverageTimer extends GuardianInput
   private final case object Tick extends GuardianInput
+  private final case object PreAlert
+
+  private final case object PollAlert // from leader
+  private final case class AlertState(state: Boolean) // to leader
+  private final case object Alert
+  private final case object NoAlert
+  final case object EndAlert
+
+  private final case object LeaderIdentity
 
   // TODO update serialization-bindings in cluster.conf
-  private sealed trait ConsensusMessage
-  private final case object Vote extends ConsensusMessage
-  private final case class NewGuardianData(data: Seq[GuardianInfo])
-  private final case object GuardianReceiveTimeout
-  private final case object Step
+//  private sealed trait ConsensusMessage
+//  private final case object Vote extends ConsensusMessage
+//  private final case class NewGuardianData(data: Seq[GuardianInfo])
+//  private final case object GuardianReceiveTimeout
+//  private final case object Step
 
   private final case object ConsensusTickKey
+  private final case object ConsensusTimeout
 
   private val maxFaultyActors = 3
 
   def main(args: Array[String]): Unit = {
-    val port = if (args.isEmpty) "0" else args(0)
-    val patch = if (args.isEmpty || args.length == 1) randomPatch else args(1)
+    val id = args(0).toInt
+    val leaderId = args(1).toInt
+    val port = if (args.length < 3) "0" else args(2)
+    val patch = if (args.length < 4) randomPatch else args(3)
     val config =
       ConfigFactory.parseString(s"""akka.remote.netty.tcp.port=$port""")
         .withFallback(ConfigFactory.load("guardian"))
 
     val system = ActorSystem(clusterName, config)
-    system actorOf(GuardianActor.props(patch), "guardian")
+    system actorOf(GuardianActor.props(patch, id, leaderId), "guardian")
   }
 }
 
-class GuardianActor(private val patchName: String) extends Actor with ActorLogging with Timers with Stash {
+class GuardianActor(private val patchName: String, private val id: Int, private var leaderId: Int) extends Actor with ActorLogging with Timers with Stash {
 
   private val cluster = Cluster(context.system)
   private val guardianId = cluster.selfMember.address.toString
@@ -64,7 +75,9 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
   private var dashboardLookUpTable: Seq[ActorRef] = Seq()
   private var sensorValue: Map[String, Double] = Map()
 
-  private var shouldAlert = false
+  private var leader: ActorRef = _
+
+  private var canPreAlert = true
   private var consensusData: ConsensusData = ConsensusData(false)
   private var patchAverageState: Double = 0.0
   private var currentPreAlertDuration: FiniteDuration = 0.milliseconds
@@ -72,6 +85,15 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
   override def preStart(): Unit = {
     super.preStart()
     cluster.subscribe(self, classOf[MemberUp], classOf[MemberDowned])
+  }
+
+  override def receive: Receive = clusterBehaviour orElse {
+    case CurrentClusterState(members, _, _, _, _) =>
+      manageStartUpMembers(members)
+      context become listening
+      timers startPeriodicTimer(AverageTimer, CalculateAverage, averagePeriod)
+      timers startPeriodicTimer(PreAlertTick, Tick, tickPeriod)
+    case _ =>
   }
 
   private def clusterBehaviour: Receive = {
@@ -82,6 +104,64 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
     case IdentifyGuardian("sensor") => sender() ! SensorAgent.GuardianIdentity(patchName)
     case IdentifyGuardian("guardian") => sender() ! GuardianActor.GuardianIdentity(patchName)
     case IdentifyGuardian("dashboard") => sender() ! DashboardActor.GuardianExistence(cluster.selfMember, guardianId, toPatch(patchName).get)
+    case LeaderIdentity =>
+      log info "Acking someone as leader"
+      this.leader = sender()
+  }
+
+  private def listening: Receive = clusterBehaviour orElse sensorAnalysis orElse {
+    case PreAlert => // leader only
+      log info "Received pre alert"
+      val leaderVote = currentPreAlertDuration > dangerDurationThreshold
+      consensusParticipants foreach (_ ! PollAlert)
+      timers startSingleTimer (ConsensusTickKey, ConsensusTimeout, 500.milliseconds)
+      context become alertDecision(Seq(leaderVote))
+    case PollAlert =>
+      val vote = currentPreAlertDuration > dangerDurationThreshold
+      sender() ! AlertState(vote)
+    case Alert =>
+      context become alert
+    case NoAlert =>
+      this.canPreAlert = true
+  }
+
+  private def alertDecision(votes: Seq[Boolean]): Receive = clusterStash orElse {
+    case AlertState(state) =>
+      log info s"Received alert state $state"
+      timers cancel ConsensusTickKey
+      timers startSingleTimer (ConsensusTickKey, ConsensusTimeout, 2.seconds)
+      context become alertDecision(votes :+ state)
+    case ConsensusTimeout =>
+      val shouldAlert = this.decide(votes)
+      if (shouldAlert) {
+        log info "Sending Alert"
+        dashboardLookUpTable foreach (_ ! DashboardActor.Alert(this.actualPatch))
+        consensusParticipants foreach (_ ! Alert)
+        context become alert
+      } else {
+        log info "Sending NoAlert"
+        this.canPreAlert = true
+        consensusParticipants foreach (_ ! NoAlert)
+        context become listening
+      }
+  }
+
+  private def alert: Receive = clusterStash orElse {
+    case EndAlert =>
+      log info "End alert"
+      this.canPreAlert = true
+      this.currentPreAlertDuration = 0.milliseconds
+      context become listening
+  }
+
+  private def decide(votes: Seq[Boolean]): Boolean = votes.count(_ == true) > (votes.length.toDouble / 2d)
+
+  private def sensorAnalysis: Receive = {
+    case SensorValue(id, value) => manageNewSensorData(id, value)
+    case CalculateAverage =>
+      calculateAverage()
+    case Tick =>
+      manageElapsingTime()
   }
 
   private def clusterStash: Receive = {
@@ -100,101 +180,15 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
       currentPreAlertDuration += tickPeriod
     }
     else {
-      this.shouldAlert = false
       dashboardLookUpTable.foreach(ref => ref ! DashboardActor.PreAlertEnd(guardianId))
       currentPreAlertDuration = 0.milliseconds
     }
 
-    if (currentPreAlertDuration > dangerDurationThreshold) {
-      this.shouldAlert = true
+    if (currentPreAlertDuration > dangerDurationThreshold && this.canPreAlert) {
+      this.canPreAlert = false
       dashboardLookUpTable.foreach(ref => ref ! DashboardActor.PreAlert(guardianId))
-      consensusParticipants.foreach(_ ! Vote)
+      this.leader ! PreAlert
     }
-  }
-
-  private def sensorAnalysis: Receive = {
-    case SensorValue(id, value) => manageNewSensorData(id, value)
-    case CalculateAverage => calculateAverage()
-    case Vote =>
-      this.consensusData = ConsensusData(this.shouldAlert)
-      context become consensusBroadcast
-      self ! Step
-    case Tick => manageElapsingTime()
-  }
-
-  override def receive: Receive = clusterBehaviour orElse {
-    case CurrentClusterState(members, _, _, _, _) =>
-      manageStartUpMembers(members)
-      context become listening
-      timers startPeriodicTimer(AverageTimer, CalculateAverage, averagePeriod)
-      timers startPeriodicTimer(PreAlertTick, Tick, tickPeriod)
-    case _ =>
-  }
-
-  private def listening: Receive = clusterBehaviour orElse sensorAnalysis orElse {
-    case _ =>
-  }
-
-  private def consensusBroadcast: Receive = clusterStash orElse {
-    case Step =>
-      this.consensusData match {
-        case ConsensusData(_, _, step, _) if step < GuardianActor.maxFaultyActors =>
-          this.consensusData = this.consensusData.incStep()
-          val notSent = this.consensusData.notSent
-          this.consensusParticipants foreach (_ ! NewGuardianData(notSent))
-          this.consensusData = this.consensusData.markAsSent(notSent)
-//          unstashAll()
-          timers startSingleTimer(ConsensusTickKey, GuardianReceiveTimeout, 3.seconds)
-          context become consensusReceive
-        case _ =>
-          val isAlert = this.consensusData.decide(this.consensusParticipants.size)
-//          log info "Values: " + this.consensusData.values.map(v => v.value)
-//          this.consensusData = ConsensusData()
-          context become (if (isAlert) {
-            log info "ALERT"
-            this.dashboardLookUpTable foreach (_ ! DashboardActor.Alert(this.actualPatch)) // TODO send decision
-            alert
-          } else {
-            log info "CONSENSUS FAILED"
-            currentPreAlertDuration = 0.seconds
-            unstashAll()
-            listening
-          })
-      }
-    case NewGuardianData(_) => stash()
-    case Vote => // throw away
-  }
-
-  private def consensusReceive: Receive = clusterStash orElse {
-    def receiveToBroadcast(): Unit = {
-      this.consensusData = this.consensusData.resetReceived()
-      self ! Step
-      context become consensusBroadcast
-    }
-    {
-      case NewGuardianData(data) if sender().path.toString != cluster.selfMember.address.toString + "/user/guardian" => // TODO is this the appropriate guard?
-        timers cancel ConsensusTickKey
-        this.consensusData = this.consensusData.receive(data)
-//        log info "Data: " + data.toString()
-        this.consensusData match {
-          case ConsensusData(_, _, _, n) if n == this.consensusParticipants.size - 1 =>
-            receiveToBroadcast()
-          case _ =>
-            timers startSingleTimer(ConsensusTickKey, GuardianReceiveTimeout, 3.seconds)
-        }
-      case GuardianReceiveTimeout =>
-        receiveToBroadcast()
-      case Vote => // throw away
-    }
-  }
-
-  private def alert: Receive = clusterStash orElse {
-    case EndAlert =>
-      log info "Exiting alert"
-      currentPreAlertDuration = 0.seconds
-      this.shouldAlert = false
-      unstashAll()
-      context become listening
   }
 
   private def manageStartUpMembers(members: SortedSet[Member]): Unit = {
@@ -212,6 +206,11 @@ class GuardianActor(private val patchName: String) extends Actor with ActorLoggi
   private def definePartnership(patch: String): Unit = {
     if (this.patchName == patch) {
       consensusParticipants = consensusParticipants :+ sender()
+      if (this.id == this.leaderId) {
+        log info s"I am the leader. [${this.id}]"
+        this.leader = self
+        sender() ! LeaderIdentity
+      }
 //      log info s"$consensusParticipants"
     }
   }
