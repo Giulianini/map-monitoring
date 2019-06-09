@@ -10,7 +10,6 @@ import javafx.scene.canvas.{Canvas, GraphicsContext}
 import javafx.scene.input.MouseButton
 import javafx.scene.layout.{AnchorPane, BorderPane, HBox}
 import javafx.scene.paint.Color
-import org.kordamp.ikonli.material.Material
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -21,23 +20,26 @@ trait View {
 }
 
 protected abstract class AbstractMainScreenView() extends View {
-  private val startIcon = ViewUtilities iconSetter(Material.PLAY_ARROW, JavafxEnums.BIG_ICON)
-  private val pauseIcon = ViewUtilities iconSetter(Material.PAUSE, JavafxEnums.BIG_ICON)
   private val _sensorPositions: mutable.Map[String, Coordinate] = mutable.HashMap()
   private var _patchesControls: mutable.Map[String, (LedPatch, HBox)] = _
   private var _context: GraphicsContext = _
 
   @FXML protected var mainBorder: BorderPane = _
   @FXML protected var toolbar: JFXToolbar = _
-  @FXML protected var buttonStartPause: JFXButton = _
   @FXML protected var comboBoxShape: JFXComboBox[ShapeType.Value] = _
+  @FXML protected var sliderDimension: JFXSlider = _
   @FXML protected var canvasPane: AnchorPane = _
   @FXML protected var canvas: Canvas = _
+
+  protected val squareDrawing: Coordinate => Unit = c => context.fillRect(c.x - sliderDimension.getValue / 2, c.y - sliderDimension.getValue / 2,
+    sliderDimension.getValue, sliderDimension.getValue)
+  protected val circleDrawing: Coordinate => Unit = c => context.fillOval(c.x - sliderDimension.getValue / 2, c.y - sliderDimension.getValue / 2,
+    sliderDimension.getValue, sliderDimension.getValue)
+  protected var shapeDrawingConsumer: Coordinate => Unit = circleDrawing
 
   @FXML def initialize(): Unit = {
     this.initCanvas()
     this.assertNodeInjected()
-    this.prepareButtons()
     this.prepareHideToolbar()
     this.prepareCombos()
     this.showPopupInfo()
@@ -52,7 +54,7 @@ protected abstract class AbstractMainScreenView() extends View {
   private def assertNodeInjected(): Unit = {
     assert(mainBorder != null, "fx:id=\"mainBorder\" was not injected: check your FXML file 'MainScreen.fxml'.")
     assert(toolbar != null, "fx:id=\"toolbar\" was not injected: check your FXML file 'MainScreen.fxml'.")
-    assert(buttonStartPause != null, "fx:id=\"buttonStartPause\" was not injected: check your FXML file 'MainScreen.fxml'.")
+    assert(sliderDimension != null, "fx:id=\"sliderDimension\" was not injected: check your FXML file 'MainScreen.fxml'.")
     assert(comboBoxShape != null, "fx:id=\"comboBoxShape\" was not injected: check your FXML file 'MainScreen.fxml'.")
     assert(canvasPane != null, "fx:id=\"canvasPane\" was not injected: check your FXML file 'MainScreen.fxml'.")
     assert(canvas != null, "fx:id=\"canvas\" was not injected: check your FXML file 'MainScreen.fxml'.")
@@ -70,25 +72,20 @@ protected abstract class AbstractMainScreenView() extends View {
     this._context.setFill(Color.SLATEGREY)
   }
 
-  private def prepareButtons(): Unit = {
-    this.buttonStartPause.setGraphic(this.startIcon)
-    this.buttonStartPause setOnAction (_ => {
-      this.buttonStartPause.getGraphic match {
-        case this.pauseIcon => this.buttonStartPause setGraphic this.startIcon
-        case this.startIcon => this.buttonStartPause setGraphic this.pauseIcon
-      }
-    })
-  }
-
   private def prepareCombos(): Unit = {
     ShapeType.values.foreach(this.comboBoxShape.getItems.add(_))
+    this.comboBoxShape.getSelectionModel.selectedItemProperty()
+      .addListener((_, _, newValue) => newValue match {
+        case ShapeType.CIRCLE => shapeDrawingConsumer = circleDrawing
+        case ShapeType.SQUARE => shapeDrawingConsumer = squareDrawing
+      })
   }
 
   def preparePatches(): Unit = {
     this._patchesControls = PatchControlFactory.makeControlsBox(this.canvasPane, e => {
       val led = e.getSource.asInstanceOf[LedPatch]
-      if (!led.isOn) {
-        led.setOn(false)
+      if (led.isBlinking) {
+        led.setBlinking(false)
         this.endAlert(Environment.toPatch(led.name).get)
       }
     })

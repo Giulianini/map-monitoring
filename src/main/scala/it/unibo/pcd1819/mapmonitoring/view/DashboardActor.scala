@@ -1,7 +1,7 @@
 package it.unibo.pcd1819.mapmonitoring.view
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Timers}
-import akka.cluster.{Cluster, Member, MemberStatus}
+import akka.cluster.{Cluster, Member}
 import akka.cluster.ClusterEvent.{CurrentClusterState, MemberDowned, MemberUp}
 import com.typesafe.config.ConfigFactory
 import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor
@@ -42,10 +42,7 @@ class DashboardActor extends Actor with ActorLogging with Timers {
     case EndAlert(patch) => log info s"Ended alarm in patch: ${patch.name}"; endAlertAllGuardian(state: DashboardActorState, patch: Patch)
   }
 
-  private def manageStartUpMembers(members: SortedSet[Member]): Unit = {
-    val filtered = members.filter(member => member.status == MemberStatus.Up).filter(member => member.hasRole("guardian"))
-    filtered.foreach(g => context.system.actorSelection(s"${g.address}/user/**") ! GuardianActor.IdentifyGuardian("dashboard"))
-  }
+  private def manageStartUpMembers(members: SortedSet[Member]): Unit = members.foreach(manageNewMember)
 
   private def manageNewMember(member: Member): Unit = member match {
     case m if m.roles.contains("guardian") => context.system.actorSelection(s"${m.address}/user/**") ! GuardianActor.IdentifyGuardian("dashboard")

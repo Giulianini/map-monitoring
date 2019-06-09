@@ -59,7 +59,7 @@ final class MainScreenView extends AbstractMainScreenView() with ActorObserver {
 
   //############################# METHODS ##################################
   private def setPatchBlinking(patchName: String, blinking: Boolean): Unit = Platform.runLater(() => {
-    this.patchesControls(patchName)._1.setBlinking(blinking)
+    this.patchesControls(patchName)._1.setOn(blinking)
   })
 
   private def setGuardianBlinking(guardianName: String, blinking: Boolean): Unit = Platform.runLater(() => {
@@ -67,18 +67,16 @@ final class MainScreenView extends AbstractMainScreenView() with ActorObserver {
       .flatMap(p => p._2.getChildren.asScala)
       .map(k => k.asInstanceOf[LedGuardian])
       .find(g => g.name == guardianName)
-    if (guardian.isDefined) guardian.get.setBlinking(blinking) else
+    if (guardian.isDefined) guardian.get.setOn(blinking) else
       ViewUtilities.showNotificationPopup("Error", "Guardian not exists", JavafxEnums.MEDIUM_DURATION, JavafxEnums.ERROR_NOTIFICATION, null)
   })
 
   private def printSensorPositions(): Unit = Platform.runLater(() => {
     this.context.clearRect(0, 0, canvasPane.getWidth, canvasPane.getHeight)
     this.sensorPositions.values
-      .filter(p => p.x < canvasPane.getWidth - Constants.SENSOR_RADIUS / 2 && p.x > Constants.SENSOR_RADIUS / 2
-        && p.y < canvasPane.getHeight - Constants.SENSOR_RADIUS / 2 && p.y > Constants.SENSOR_RADIUS / 2)
-      .foreach(c => context.fillOval(c.x - Constants.SENSOR_RADIUS / 2, c.y - Constants.SENSOR_RADIUS / 2,
-        Constants.SENSOR_RADIUS, Constants.SENSOR_RADIUS)
-      )
+      .filter(p => p.x < canvasPane.getWidth - sliderDimension.getValue / 2 && p.x > sliderDimension.getValue / 2
+        && p.y < canvasPane.getHeight - sliderDimension.getValue / 2 && p.y > sliderDimension.getValue / 2)
+      .foreach(shapeDrawingConsumer)
   })
 }
 
