@@ -14,20 +14,11 @@ import scala.collection.immutable.SortedSet
 import scala.concurrent.duration.{FiniteDuration, _}
 import scala.util.Random
 
-
-object ye extends App {
-  var map: Map[String, Int] = Map()
-  map = map + ("a" -> 1)
-  map = map + ("a" -> 2)
-  map = map + ("b" -> 2)
-  println(map.toString)
-}
-
 object SensorAgent {
   def props = Props(classOf[SensorAgent])
 
   sealed trait SensorInput
-  final case class GuardianIdentity(patch: String) extends SensorInput
+  final case class GuardianIdentity(member: Member, patch: String) extends SensorInput
   final case object DashboardIdentity extends SensorInput
 
   private final case object TickKey
@@ -50,9 +41,11 @@ class SensorAgent extends Actor with ActorLogging with Timers {
 
   private val decisionMaker = Random
   private val nature = pickNature
+  private val sensorId = cluster.selfMember.address.toString
 
   private var guardianLookUpTable: Map[String, Seq[ActorRef]] = Map()
   private var dashboardLookUpTable: Seq[ActorRef] = Seq()
+  private var memberAssociation: Map[Member, ActorRef] = Map()
 
   private var y: Double = _
   private var x: Double = _
@@ -77,7 +70,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
   private def clusterBehaviour: Receive = {
     case MemberUp(member) => manageNewMember(member)
     case MemberDowned(member) => manageDeadMember(member)
-    case GuardianIdentity(patch) => manageGuardianLookUpTable(patch)
+    case GuardianIdentity(member, patch) => manageGuardianLookUpTable(member, patch)
     case DashboardIdentity => manageDashboardLookUpTable()
   }
 
@@ -88,17 +81,17 @@ class SensorAgent extends Actor with ActorLogging with Timers {
       if (currentPatch.nonEmpty) {
         if (guardianLookUpTable.contains(currentPatch.get.name)) {
           guardianLookUpTable(currentPatch.get.name).foreach(ref => {
-            ref ! GuardianActor.SensorValue(value)
+            ref ! GuardianActor.SensorValue(sensorId, value)
             log debug s"SENDING $value to $ref"
           })
         }
       }
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       context become {
-        if (remainSilent(value.toInt)) {
-          log debug "talk to silentMoving"
-          silentMoving
-        } else {
+//        if (remainSilent(value.toInt)) {
+//          log debug "talk to silentMoving"
+//          silentMoving
+//        } else {
           if (currentPatch.isEmpty) {
             log debug "talk to silentWandering"
             silentWandering
@@ -106,7 +99,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
             log debug "talk to moving"
             moving
           }
-        }
+//        }
       }
     case _ => log error s"$x A sensor is not meant to be contacted"
   }
@@ -133,7 +126,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
       move(value.toInt)
       log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
       dashboardLookUpTable.foreach(
-        ref => ref ! DashboardActor.SensorPosition(cluster.selfMember.address.toString, Coordinate(x, y)))
+        ref => ref ! DashboardActor.SensorPosition(sensorId, Coordinate(x, y)))
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       log debug "moving to talk"
       context become talk
@@ -146,7 +139,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
       move(value.toInt)
       log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
       dashboardLookUpTable.foreach(
-        ref => ref ! DashboardActor.SensorPosition(cluster.selfMember.address.toString, Coordinate(x, y)))
+        ref => ref ! DashboardActor.SensorPosition(sensorId, Coordinate(x, y)))
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       log debug "silentMoving to silent"
       context become silent
@@ -161,14 +154,14 @@ class SensorAgent extends Actor with ActorLogging with Timers {
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       if (!outside) {
         context become {
-          if (remainSilent(value.toInt)) {
-            log debug "silentWandering to silentMoving"
-            silentMoving
-          } else {
+//          if (remainSilent(value.toInt)) {
+//            log debug "silentWandering to silentMoving"
+//            silentMoving
+//          } else {
             log debug "silentWandering to moving"
             moving
           }
-        }
+//        }
       }
     case _ => log error "A sensor is not meant to be contacted"
   }
@@ -191,23 +184,23 @@ class SensorAgent extends Actor with ActorLogging with Timers {
   }
 
   private def chooseNextHorizontalMovement(value: Int): Double = value match {
-    case v if v > 0 && v < 25 => 2
-    case v if v > 25 && v < 50 => 2
-    case v if v > 50 && v < 75 => -2
-    case v if v > 75 && v < 100 => -2
+    case v if v > 0 && v < 25 => decisionMaker.nextInt(7) - 3
+    case v if v > 25 && v < 50 => decisionMaker.nextInt(7) - 3
+    case v if v > 50 && v < 75 => decisionMaker.nextInt(7) - 3
+    case v if v > 75 && v < 100 => decisionMaker.nextInt(7) - 3
     case _ => 0
   }
 
   private def chooseNextVerticalMovement(value: Int): Double = value match {
-    case v if v > 0 && v < 25 => 2
-    case v if v > 25 && v < 50 => 2
-    case v if v > 50 && v < 75 => -2
-    case v if v > 75 && v < 100 => -2
+    case v if v > 0 && v < 25 => decisionMaker.nextInt(7) - 3
+    case v if v > 25 && v < 50 => decisionMaker.nextInt(7) - 3
+    case v if v > 50 && v < 75 => decisionMaker.nextInt(7) - 3
+    case v if v > 75 && v < 100 => decisionMaker.nextInt(7) - 3
     case _ => 0
   }
 
   private def pickNature: Responsiveness = {
-    Responsiveness(decisionMaker.nextInt(500).milliseconds)
+    Responsiveness((decisionMaker.nextInt(500) + 100).milliseconds)
   }
 
   private def manageNewMember(member: Member): Unit = member match {
@@ -228,18 +221,21 @@ class SensorAgent extends Actor with ActorLogging with Timers {
     dashboards.foreach(d => context.system.actorSelection(s"${d.address}/user/**") ! GuardianActor.IdentifyGuardian("sensor"))
   }
 
-  private def manageGuardianLookUpTable(patch: String): Unit = {
-    val updatedValues = if (guardianLookUpTable.contains(patch)) guardianLookUpTable(patch) :+ sender() else Seq(sender())
-    guardianLookUpTable = guardianLookUpTable + (patch -> updatedValues)
-    log debug s"$guardianLookUpTable"
+  private def manageGuardianLookUpTable(member: Member, patch: String): Unit = {
+    val updatedLookUpValues = if (guardianLookUpTable.contains(patch)) guardianLookUpTable(patch) :+ sender() else Seq(sender())
+    guardianLookUpTable = guardianLookUpTable + (patch -> updatedLookUpValues)
+    memberAssociation = memberAssociation + (member -> sender())
   }
 
   private def manageDashboardLookUpTable(): Unit = {
     dashboardLookUpTable = dashboardLookUpTable :+ sender()
-    log debug s"$dashboardLookUpTable"
   }
 
   private def manageDeadMember(member: Member): Unit = {
-    log info "HEY WE NEED TO FIX THIS PROBLEM AMIRITE"
+    val deletee = memberAssociation(member)
+    memberAssociation = memberAssociation - member
+
+    val updated = guardianLookUpTable.filter(p => p._2 contains deletee).toSeq.head
+    guardianLookUpTable = guardianLookUpTable + (updated._1 -> updated._2)
   }
 }

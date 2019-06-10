@@ -19,11 +19,11 @@ object Environment {
   val column: Int = 3
   val row: Int = 2
   val patchNumber: Int = column * row
-  val patchWidth = width / column
-  val patchHeigth = height / row
+  val patchWidth: Double = width / column
+  val patchHeigth: Double = height / row
 
-  val dangerThreshold: Double = 70.0
-  val dangerDurationThreshold: FiniteDuration = 2000.milliseconds
+  val dangerThreshold: Double = 1.0
+  val dangerDurationThreshold: FiniteDuration = 500.milliseconds
 
   val patches: Seq[Patch] =
     (for (i <- 0 until row; j <- 0 until column) yield (i, j))
