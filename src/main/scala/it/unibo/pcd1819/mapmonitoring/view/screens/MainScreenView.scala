@@ -49,8 +49,8 @@ final class MainScreenView extends AbstractMainScreenView() with ActorObserver {
   override def guardianExistence(guardianId: String, patch: Patch): Unit = Platform.runLater(() => {
     if (!guardianExists(guardianId)) this.patchesControls(patch.name)._2.getChildren.add(LedGuardian(guardianId))
   })
-  override def preAlert(guardianId: String): Unit = setGuardianBlinking(guardianId, blinking = true)
-  override def preAlertEnd(guardianId: String): Unit = setGuardianBlinking(guardianId, blinking = false)
+  override def preAlert(guardianId: String): Unit = setGuardianOn(guardianId, on = true)
+  override def preAlertEnd(guardianId: String): Unit = setGuardianOn(guardianId, on = false)
   override def alert(patch: Patch): Unit = setPatchBlinking(patch.name, blinking = true)
   override def sensorPosition(sensorId: String, c: Coordinate): Unit = {
     this.sensorPositions += (sensorId -> c)
@@ -62,12 +62,12 @@ final class MainScreenView extends AbstractMainScreenView() with ActorObserver {
     this.patchesControls(patchName)._1.setOn(blinking)
   })
 
-  private def setGuardianBlinking(guardianName: String, blinking: Boolean): Unit = Platform.runLater(() => {
+  private def setGuardianOn(guardianName: String, on: Boolean): Unit = Platform.runLater(() => {
     val guardian = this.patchesControls.values
       .flatMap(p => p._2.getChildren.asScala)
       .map(k => k.asInstanceOf[LedGuardian])
       .find(g => g.name == guardianName)
-    if (guardian.isDefined) guardian.get.setOn(blinking) else
+    if (guardian.isDefined) guardian.get.setOn(on) else
       ViewUtilities.showNotificationPopup("Error", "Guardian not exists", JavafxEnums.MEDIUM_DURATION, JavafxEnums.ERROR_NOTIFICATION, null)
   })
 
