@@ -1,4 +1,4 @@
-package ass32gc
+package it.unibo.pcd1819.mapmonitoring
 
 import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor
 import it.unibo.pcd1819.mapmonitoring.model.NetworkConstants._
