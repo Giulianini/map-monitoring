@@ -1,7 +1,7 @@
 package it.unibo.pcd1819.mapmonitoring.sensor
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Timers}
-import akka.cluster.{Cluster, Member, MemberStatus}
+import akka.cluster.{Cluster, Member}
 import akka.cluster.ClusterEvent.{CurrentClusterState, MemberDowned, MemberUp}
 import com.typesafe.config.ConfigFactory
 import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor
@@ -88,18 +88,18 @@ class SensorAgent extends Actor with ActorLogging with Timers {
       }
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       context become {
-//        if (remainSilent(value.toInt)) {
-//          log debug "talk to silentMoving"
-//          silentMoving
-//        } else {
-          if (currentPatch.isEmpty) {
-            log debug "talk to silentWandering"
-            silentWandering
-          } else {
-            log debug "talk to moving"
-            moving
-          }
-//        }
+        //        if (remainSilent(value.toInt)) {
+        //          log debug "talk to silentMoving"
+        //          silentMoving
+        //        } else {
+        if (currentPatch.isEmpty) {
+          log debug "talk to silentWandering"
+          silentWandering
+        } else {
+          log debug "talk to moving"
+          moving
+        }
+        //        }
       }
     case _ => log error s"$x A sensor is not meant to be contacted"
   }
@@ -154,14 +154,14 @@ class SensorAgent extends Actor with ActorLogging with Timers {
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       if (!outside) {
         context become {
-//          if (remainSilent(value.toInt)) {
-//            log debug "silentWandering to silentMoving"
-//            silentMoving
-//          } else {
-            log debug "silentWandering to moving"
-            moving
-          }
-//        }
+          //          if (remainSilent(value.toInt)) {
+          //            log debug "silentWandering to silentMoving"
+          //            silentMoving
+          //          } else {
+          log debug "silentWandering to moving"
+          moving
+        }
+        //        }
       }
     case _ => log error "A sensor is not meant to be contacted"
   }
@@ -212,13 +212,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
   }
 
   private def manageStartUpMembers(members: SortedSet[Member]): Unit = {
-    val filtered = members.filter(member => member.status == MemberStatus.Up)
-      .filter(member => member.hasRole("guardian") || member.hasRole("dashboard"))
-      .partition(member => member.hasRole("guardian") || member.hasRole("dashboard"))
-    val guardians = filtered._1
-    val dashboards = filtered._2
-    guardians.foreach(g => context.system.actorSelection(s"${g.address}/user/**") ! GuardianActor.IdentifyGuardian("sensor"))
-    dashboards.foreach(d => context.system.actorSelection(s"${d.address}/user/**") ! GuardianActor.IdentifyGuardian("sensor"))
+    members.foreach(manageNewMember)
   }
 
   private def manageGuardianLookUpTable(member: Member, patch: String): Unit = {
