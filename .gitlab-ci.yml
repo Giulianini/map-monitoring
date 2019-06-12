@@ -1,11 +1,10 @@
-image: openjdk:8
+image: amazoncorretto:8
 
 stages:
   - build
 
 before_script:
   - export GRADLE_USER_HOME=`pwd`/.gradle
-  - apt-get update && apt-get install -y openjfx
 
 cache:
   paths:
