@@ -58,7 +58,6 @@ class SensorAgent extends Actor with ActorLogging with Timers {
     log info s"Sensor agent ${self.path} started with a ${nature.updateSpeed.toMillis} ms Tick"
   }
 
-
   override def receive: Receive = clusterBehaviour orElse {
     case CurrentClusterState(members, _, _, _, _) =>
       manageStartUpMembers(members)
@@ -88,10 +87,6 @@ class SensorAgent extends Actor with ActorLogging with Timers {
       }
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       context become {
-//        if (remainSilent(value.toInt)) {
-//          log debug "talk to silentMoving"
-//          silentMoving
-//        } else {
           if (currentPatch.isEmpty) {
             log debug "talk to silentWandering"
             silentWandering
@@ -99,26 +94,11 @@ class SensorAgent extends Actor with ActorLogging with Timers {
             log debug "talk to moving"
             moving
           }
-//        }
       }
     case _ => log error s"$x A sensor is not meant to be contacted"
   }
 
-  private def silent: Receive = clusterBehaviour orElse {
-    case Tick =>
-      val value = pickDecision
-      timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
-      context become {
-        if (becomeTalkative(value.toInt)) {
-          log debug "silent to talk"
-          talk
-        } else {
-          log debug "silent to silentMoving"
-          silentMoving
-        }
-      }
-    case _ => log error "A sensor is not meant to be contacted"
-  }
+
 
   private def moving: Receive = clusterBehaviour orElse {
     case Tick =>
@@ -133,19 +113,6 @@ class SensorAgent extends Actor with ActorLogging with Timers {
     case _ => log error "A sensor is not meant to be contacted"
   }
 
-  private def silentMoving: Receive = clusterBehaviour orElse {
-    case Tick =>
-      val value = pickDecision
-      move(value.toInt)
-      log debug s"Sending ${Coordinate(x, y)} to view telling I am ${cluster.selfMember.address}"
-      dashboardLookUpTable.foreach(
-        ref => ref ! DashboardActor.SensorPosition(sensorId, Coordinate(x, y)))
-      timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
-      log debug "silentMoving to silent"
-      context become silent
-    case _ => log error "A sensor is not meant to be contacted"
-  }
-
   private def silentWandering: Receive = clusterBehaviour orElse {
     case Tick =>
       val value = pickDecision
@@ -154,14 +121,9 @@ class SensorAgent extends Actor with ActorLogging with Timers {
       timers startSingleTimer(TickKey, Tick, nature.updateSpeed)
       if (!outside) {
         context become {
-//          if (remainSilent(value.toInt)) {
-//            log debug "silentWandering to silentMoving"
-//            silentMoving
-//          } else {
             log debug "silentWandering to moving"
             moving
           }
-//        }
       }
     case _ => log error "A sensor is not meant to be contacted"
   }
@@ -173,14 +135,6 @@ class SensorAgent extends Actor with ActorLogging with Timers {
 
   private def pickDecision: Double = {
     decisionMaker.nextDouble() * 100
-  }
-
-  private def remainSilent(v: Int): Boolean = {
-    v == 0 || v == 25 || v == 50 || v == 75 || v == 100
-  }
-
-  private def becomeTalkative(v: Int): Boolean = {
-    v == 0 || v == 25 || v == 50 || v == 75 || v == 100
   }
 
   private def chooseNextHorizontalMovement(value: Int): Double = value match {
