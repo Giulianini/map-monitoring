@@ -1,7 +1,7 @@
 package it.unibo.pcd1819.mapmonitoring.sensor
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Timers}
-import akka.cluster.{Cluster, Member, MemberStatus}
+import akka.cluster.{Cluster, Member}
 import akka.cluster.ClusterEvent.{CurrentClusterState, MemberDowned, MemberUp}
 import com.typesafe.config.ConfigFactory
 import it.unibo.pcd1819.mapmonitoring.guardian.GuardianActor
@@ -166,13 +166,7 @@ class SensorAgent extends Actor with ActorLogging with Timers {
   }
 
   private def manageStartUpMembers(members: SortedSet[Member]): Unit = {
-    val filtered = members.filter(member => member.status == MemberStatus.Up)
-      .filter(member => member.hasRole("guardian") || member.hasRole("dashboard"))
-      .partition(member => member.hasRole("guardian") || member.hasRole("dashboard"))
-    val guardians = filtered._1
-    val dashboards = filtered._2
-    guardians.foreach(g => context.system.actorSelection(s"${g.address}/user/**") ! GuardianActor.IdentifyGuardian("sensor"))
-    dashboards.foreach(d => context.system.actorSelection(s"${d.address}/user/**") ! GuardianActor.IdentifyGuardian("sensor"))
+    members.foreach(manageNewMember)
   }
 
   private def manageGuardianLookUpTable(member: Member, patch: String): Unit = {
