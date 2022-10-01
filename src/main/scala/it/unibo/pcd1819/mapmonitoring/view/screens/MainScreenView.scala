@@ -1,7 +1,6 @@
 package it.unibo.pcd1819.mapmonitoring.view.screens
 
 import akka.actor.ActorRef
-import com.sun.javafx.application.PlatformImpl
 import it.unibo.pcd1819.mapmonitoring.model.Environment.{Coordinate, Patch}
 import it.unibo.pcd1819.mapmonitoring.view.FXMLScreens
 import it.unibo.pcd1819.mapmonitoring.view.utilities.{JavafxEnums, LedGuardian, ViewUtilities}
@@ -82,7 +81,7 @@ final class MainScreenView extends AbstractMainScreenView() with ActorObserver {
 
 object MainScreenView {
   def apply(): MainScreenView = {
-    PlatformImpl.startup(() => {})
+    Platform.startup(() => {})
     new MainScreenView()
   }
 }

@@ -5,8 +5,14 @@ plugins {
     id 'checkstyle'
     id 'project-report'
     id 'jacoco'
+    id 'org.openjfx.javafxplugin' version '0.0.13'
 }
 
+javafx {
+    version = "11.0.2"
+    modules = [ 'javafx.controls', 'javafx.fxml' ]
+
+}
 group 'pcd-1819'
 version '1.0-SNAPSHOT'
 
@@ -28,17 +34,17 @@ dependencies {
     implementation 'log4j:log4j:1.2.17'
     //SCALA LIBS
     //JAVAFX
-    implementation 'com.jfoenix:jfoenix:8.0.8' // Java 8
-    implementation 'org.kordamp.ikonli:ikonli-core:1.7.0'
-    implementation 'org.kordamp.ikonli:ikonli-javafx:1.7.0'
-    implementation 'org.kordamp.ikonli:ikonli-material-pack:1.7.0'
+    implementation 'com.jfoenix:jfoenix:9.0.10' // Java 8
+    implementation 'org.kordamp.ikonli:ikonli-core:12.3.1'
+    implementation 'org.kordamp.ikonli:ikonli-javafx:12.3.1'
+    implementation 'org.kordamp.ikonli:ikonli-material-pack:12.3.1'
     implementation 'eu.hansolo.enzo:Enzo:0.3.6'
     //SCALA LANG
     implementation 'org.scala-lang:scala-library:2.11.12'
     testImplementation 'org.scala-lang:scala-library:2.11.1'
     //TESTING
-    testImplementation 'junit:junit:4.12'
-    testImplementation 'org.scalatest:scalatest_2.11:3.0.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.scalatest:scalatest_2.11:3.2.12'
     //LOGING
     implementation group: 'com.typesafe.akka', name: 'akka-slf4j_2.12', version: '2.5.23'
 
